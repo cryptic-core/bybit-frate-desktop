@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit, QLabel
 
 
@@ -44,6 +44,11 @@ class MyDialog(QDialog):
         self.log_area = QTextEdit()
         layout.addWidget(self.log_area)
 
+        # Load and set the last input values
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        self.text_input1.setText(settings.value("last_input1", ""))
+        self.text_input2.setText(settings.value("last_input2", ""))
+
         self.setLayout(layout)
 
         self.worker = Worker()
@@ -59,7 +64,13 @@ class MyDialog(QDialog):
 
     def update_log(self, message):
         self.log_area.append(message)
-
+    
+    def closeEvent(self, event):
+        # Save the last input values when the dialog is closed
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        settings.setValue("last_input1", self.text_input1.text())
+        settings.setValue("last_input2", self.text_input2.text())
+        super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
