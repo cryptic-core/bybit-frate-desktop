@@ -47,7 +47,8 @@ class Worker(QThread):
             self.synthbook[instId]['bidSz']=float(message['data']['b'][0][1])
             self.synthbook[instId]['askPx']=float(message['data']['a'][0][0])
             self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
-        
+        self.aggregate_book()
+    
     def handle_spot_message(self,message):
         if self.isInterruptionRequested():return
         # todo : entry log
@@ -69,9 +70,16 @@ class Worker(QThread):
             self.synthbook[instId]['bidSz']=float(message['data']['b'][0][1])
             self.synthbook[instId]['askPx']=float(message['data']['a'][0][0])
             self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
-       
-    def aggregate_book(self,data):
-        #self.update_signal.emit(f"{message['data']['b'][0]}")
+        self.aggregate_book()
+    
+    def aggregate_book(self):
+        
+        for instId in self.synthbook:
+            diff = self.synthbook[instId]['SwBPx']-self.synthbook[instId]['askPx']
+            diffperc = diff/self.synthbook[instId]['SwBPx']
+            #if diffperc > 0.0005:
+            if diffperc > 0:
+                self.update_signal.emit(f"{instId} has entry chance")
         pass
 
     def run(self):
