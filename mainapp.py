@@ -12,21 +12,73 @@ class Worker(QThread):
         super().__init__()
         self.input1 = input1
         self.input2 = input2
-        self.ws = WebSocket(
+        self.wsspot = WebSocket(
+            testnet=False,
+            channel_type="spot",
+        )
+        self.wsperp = WebSocket(
             testnet=False,
             channel_type="linear",
         )
-        self.ws.orderbook_stream(50, "BTCUSDT", self.handle_message)
+        self.synthbook = {}
+        # https://api.bybit.com/derivatives/v3/public/instruments-info
+        self.wsspot.orderbook_stream(1, "DOGEUSDT", self.handle_spot_message)
+        self.wsperp.orderbook_stream(1, "DOGEUSDT", self.handle_perp_message)
+        
 
-    def handle_message(self,message):
+    def handle_perp_message(self,message):
         if self.isInterruptionRequested():return
         # todo : entry log
-        self.update_signal.emit(f"{message['data']['b'][0]}")
-    
+        instId = message['data']['s']
+        if not instId in self.synthbook:
+            self.synthbook[instId] = {
+                'bidPx':float(message['data']['b'][0][0]),
+                'bidSz':float(message['data']['b'][0][1]),
+                'askPx':float(message['data']['a'][0][0]),
+                'askSz':float(message['data']['a'][0][1]),
+
+                'SwBPx':float(message['data']['b'][0][0]),
+                'SwBSz':float(message['data']['b'][0][1]),
+                'SwAPx':float(message['data']['a'][0][0]),
+                'SwASz':float(message['data']['a'][0][1]),
+            }
+        else:
+            self.synthbook[instId]['bidPx']=float(message['data']['b'][0][0])
+            self.synthbook[instId]['bidSz']=float(message['data']['b'][0][1])
+            self.synthbook[instId]['askPx']=float(message['data']['a'][0][0])
+            self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
+        
+    def handle_spot_message(self,message):
+        if self.isInterruptionRequested():return
+        # todo : entry log
+        instId = message['data']['s']
+        if not instId in self.synthbook:
+            self.synthbook[instId] = {
+                'bidPx':float(message['data']['b'][0][0]),
+                'bidSz':float(message['data']['b'][0][1]),
+                'askPx':float(message['data']['a'][0][0]),
+                'askSz':float(message['data']['a'][0][1]),
+
+                'SwBPx':float(message['data']['b'][0][0]),
+                'SwBSz':float(message['data']['b'][0][1]),
+                'SwAPx':float(message['data']['a'][0][0]),
+                'SwASz':float(message['data']['a'][0][1]),
+            }
+        else:
+            self.synthbook[instId]['bidPx']=float(message['data']['b'][0][0])
+            self.synthbook[instId]['bidSz']=float(message['data']['b'][0][1])
+            self.synthbook[instId]['askPx']=float(message['data']['a'][0][0])
+            self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
+       
+    def aggregate_book(self,data):
+        #self.update_signal.emit(f"{message['data']['b'][0]}")
+        pass
+
     def run(self):
         while True:
             if self.isInterruptionRequested():
-                self.ws.exit()
+                self.wsspot.exit()
+                self.wsperp.exit()
                 break
             # Simulate work
             self.msleep(1000)  # Sleep for 1 second
@@ -36,7 +88,7 @@ class MyDialog(QDialog):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Dialog Example")
+        self.setWindowTitle("FRate Arbitrageur")
 
         layout = QVBoxLayout()
 
