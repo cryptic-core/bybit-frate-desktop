@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit
-from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton
+from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton, QSizePolicy
 from PyQt5.QtCore import QSize
 from pybit.unified_trading import WebSocket
 
@@ -160,24 +160,37 @@ class MyDialog(QDialog):
     def create_settings_tab(self):
 
         settings = QSettings("config.ini", QSettings.IniFormat)
-        
         settings_tab = QWidget()
-        layout = QVBoxLayout()
-        settings_tab.setLayout(layout)
+        vbox = QVBoxLayout()
+        groupBox = QGroupBox("Api key settings")
+        groupBoxLayout = QVBoxLayout()
 
+        # Create labels and text input fields
+        label1 = QLabel("Api Key:")
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText("api_key")
         self.api_key_input.setText(settings.value("last_input1", ""))
-        layout.addWidget(self.api_key_input)
-
+        
+        label2 = QLabel("Api Secret:")
         self.api_secret_input = QLineEdit()
         self.api_secret_input.setPlaceholderText("api_secret")
         self.api_secret_input.setEchoMode(QLineEdit.Password)
         self.api_secret_input.setText(settings.value("last_input2", ""))
         
-        layout.addSpacing(20)  # Add 20 pixels spacing
-        layout.addWidget(self.api_secret_input)
+        # Add labels and text input fields to groupbox layout
+        groupBoxLayout.addWidget(label1)
+        groupBoxLayout.addWidget(self.api_key_input)
+        groupBoxLayout.addWidget(label2)
+        groupBoxLayout.addWidget(self.api_secret_input)
 
+        # Set layout of groupbox
+        groupBox.setLayout(groupBoxLayout)
+
+        # Add groupbox to the main layout
+        vbox.addWidget(groupBox, alignment=Qt.AlignTop)
+
+        # Set geometry of the dialog
+        settings_tab.setLayout(vbox)
         return settings_tab
 
     def toggle_start_button_text(self):
