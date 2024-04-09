@@ -11,10 +11,21 @@ class Worker(QThread):
 
     update_signal = pyqtSignal(str)
 
-    def __init__(self, input1, input2):
+    def __init__(self,
+                 apikey,
+                 secretkey,
+                 symbol='DOGEUSDT',
+                 descrpancy=0.001,
+                 ):
         super().__init__()
-        self.input1 = input1
-        self.input2 = input2
+        self.apikey = apikey
+        self.secretkey = secretkey
+        self.symbol=symbol
+        self.descrpancy = descrpancy
+
+        # time interval to request current holdings
+        self.rest_api_counter = 0
+
         self.wsspot = WebSocket(
             testnet=False,
             channel_type="spot",
@@ -25,13 +36,13 @@ class Worker(QThread):
         )
         self.synthbook = {}
         # https://api.bybit.com/derivatives/v3/public/instruments-info
-        self.wsspot.orderbook_stream(1, "DOGEUSDT", self.handle_spot_message)
-        self.wsperp.orderbook_stream(1, "DOGEUSDT", self.handle_perp_message)
+        self.wsspot.orderbook_stream(1, self.symbol, self.handle_spot_message)
+        self.wsperp.orderbook_stream(1, self.symbol, self.handle_perp_message)
         
 
     def handle_perp_message(self,message):
         if self.isInterruptionRequested():return
-        # todo : entry log
+
         instId = message['data']['s']
         if not instId in self.synthbook:
             self.synthbook[instId] = {
@@ -54,7 +65,7 @@ class Worker(QThread):
     
     def handle_spot_message(self,message):
         if self.isInterruptionRequested():return
-        # todo : entry log
+
         instId = message['data']['s']
         if not instId in self.synthbook:
             self.synthbook[instId] = {
@@ -75,14 +86,27 @@ class Worker(QThread):
             self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
         self.aggregate_book()
     
+    def handle_order_message(self,message):
+        # if perp order just filled 
+        # check num filled and market order spot
+        pass
+    
     def aggregate_book(self):
-        
         for instId in self.synthbook:
             diff = self.synthbook[instId]['SwBPx']-self.synthbook[instId]['askPx']
             diffperc = diff/self.synthbook[instId]['SwBPx']
-            #if diffperc > 0.0005:
-            if diffperc > 0:
+            if diffperc > self.descrpancy:
                 self.update_signal.emit(f"{instId} has entry chance")
+                # place limit order swap
+
+        # ( debug )
+        #print(self.synthbook)
+
+    # every 5 seconds, check spot holdings and position
+    # then refresh the UI
+    def fetch_account_informations(self):
+        # check current 
+        print('time to ask account infomation')
         pass
 
     def run(self):
@@ -91,8 +115,23 @@ class Worker(QThread):
                 self.wsspot.exit()
                 self.wsperp.exit()
                 break
-            # Simulate work
-            self.msleep(1000)  # Sleep for 1 second
+
+            # worker initialization log
+            if len(self.synthbook)<1:
+                self.update_signal.emit(f"initialized")
+            
+            # timer counter query account info
+            self.rest_api_counter+=1
+            if(self.rest_api_counter>9):
+                self.fetch_account_informations()
+                self.rest_api_counter=0
+            
+            # Sleep for 1 second
+            self.msleep(1000)
+            
+            
+
+            
 
 
 class MyDialog(QDialog):
@@ -145,9 +184,8 @@ class MyDialog(QDialog):
         layout.addSpacing(20)  # Add 20 pixels spacing
 
         self.start_button = QPushButton("Start")
+        
         # Connect signals
-        self.start_button.pressed.connect(self.start_worker)
-        self.start_button.released.connect(self.stop_worker)
         self.start_button.clicked.connect(self.toggle_start_button_text)
 
 
@@ -162,7 +200,7 @@ class MyDialog(QDialog):
         settings = QSettings("config.ini", QSettings.IniFormat)
         settings_tab = QWidget()
         vbox = QVBoxLayout()
-        groupBox = QGroupBox("Api key settings")
+        groupBox = QGroupBox("Settings")
         groupBoxLayout = QVBoxLayout()
 
         # Create labels and text input fields
@@ -177,11 +215,19 @@ class MyDialog(QDialog):
         self.api_secret_input.setEchoMode(QLineEdit.Password)
         self.api_secret_input.setText(settings.value("last_input2", ""))
         
+        label3 = QLabel("Symbol:")
+        self.symbol_input = QLineEdit()
+        self.symbol_input.setPlaceholderText("DOGEUSDT")
+        self.symbol_input.setText(settings.value("symbol", ""))
+        
+
         # Add labels and text input fields to groupbox layout
         groupBoxLayout.addWidget(label1)
         groupBoxLayout.addWidget(self.api_key_input)
         groupBoxLayout.addWidget(label2)
         groupBoxLayout.addWidget(self.api_secret_input)
+        groupBoxLayout.addWidget(label3)
+        groupBoxLayout.addWidget(self.symbol_input)
 
         # Set layout of groupbox
         groupBox.setLayout(groupBoxLayout)
@@ -196,16 +242,20 @@ class MyDialog(QDialog):
     def toggle_start_button_text(self):
         current_text = self.start_button.text()
         if current_text == "Start":
+            self.start_worker()
             self.start_button.setText("Stop")
         else:
+            self.stop_worker()
             self.start_button.setText("Start")
 
     def start_worker(self):
+        print('start worker pressed')
         if not self.worker or not self.worker.isRunning():
-            input1 = self.api_key_input.text()
-            input2 = self.api_secret_input.text()
+            apikey = self.api_key_input.text()
+            secretkey = self.api_secret_input.text()
+            symbol = self.symbol_input.text()
             self.logs_textedit.clear()
-            self.worker = Worker(input1, input2)
+            self.worker = Worker(apikey,secretkey,symbol)
             self.worker.update_signal.connect(self.update_log)
             self.worker.start()
     
@@ -221,6 +271,7 @@ class MyDialog(QDialog):
         settings = QSettings("config.ini", QSettings.IniFormat)
         settings.setValue("last_input1", self.api_key_input.text())
         settings.setValue("last_input2", self.api_secret_input.text())
+        settings.setValue("symbol", self.symbol_input.text())
         super().closeEvent(event)
 
 if __name__ == "__main__":
