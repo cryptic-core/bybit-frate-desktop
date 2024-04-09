@@ -200,7 +200,7 @@ class MyDialog(QDialog):
         settings = QSettings("config.ini", QSettings.IniFormat)
         settings_tab = QWidget()
         vbox = QVBoxLayout()
-        groupBox = QGroupBox("Settings")
+        groupBox = QGroupBox("Parameters")
         groupBoxLayout = QVBoxLayout()
 
         # Create labels and text input fields
@@ -220,6 +220,10 @@ class MyDialog(QDialog):
         self.symbol_input.setPlaceholderText("DOGEUSDT")
         self.symbol_input.setText(settings.value("symbol", ""))
         
+        label4 = QLabel("MM Rate Limit(%)")
+        self.mmrate_input = QLineEdit()
+        self.mmrate_input.setPlaceholderText("30")
+        self.mmrate_input.setText(settings.value("mmrate", ""))
 
         # Add labels and text input fields to groupbox layout
         groupBoxLayout.addWidget(label1)
@@ -228,6 +232,29 @@ class MyDialog(QDialog):
         groupBoxLayout.addWidget(self.api_secret_input)
         groupBoxLayout.addWidget(label3)
         groupBoxLayout.addWidget(self.symbol_input)
+        groupBoxLayout.addWidget(label4)
+        groupBoxLayout.addWidget(self.mmrate_input)
+
+        # entry and exit tab
+        tab_widget = QTabWidget()
+        entry_tab = QWidget()
+        exit_tab = QWidget()
+        tab_widget.addTab(entry_tab, "Entry")
+        tab_widget.addTab(exit_tab,"Exit")
+        tab_widget.setCurrentIndex(settings.value("entrymode", "")=='True')
+        def on_tab_changed(index):
+            print(index)
+            pass
+        tab_widget.tabBarClicked.connect(on_tab_changed)
+
+
+        # save current entry mode when tab change
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        settings.setValue("last_input1", self.api_key_input.text())
+
+
+        groupBoxLayout.addWidget(tab_widget)
+
 
         # Set layout of groupbox
         groupBox.setLayout(groupBoxLayout)
@@ -249,7 +276,6 @@ class MyDialog(QDialog):
             self.start_button.setText("Start")
 
     def start_worker(self):
-        print('start worker pressed')
         if not self.worker or not self.worker.isRunning():
             apikey = self.api_key_input.text()
             secretkey = self.api_secret_input.text()
