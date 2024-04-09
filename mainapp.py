@@ -1,5 +1,5 @@
 import sys
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit
 from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton, QSizePolicy
@@ -7,8 +7,7 @@ from PyQt5.QtCore import QSize
 from pybit.unified_trading import WebSocket
 
 
-class Worker(QThread):
-
+class OrderWorker(QThread):
     update_signal = pyqtSignal(str)
 
     def __init__(self,
@@ -39,7 +38,6 @@ class Worker(QThread):
         self.wsspot.orderbook_stream(1, self.symbol, self.handle_spot_message)
         self.wsperp.orderbook_stream(1, self.symbol, self.handle_perp_message)
         
-
     def handle_perp_message(self,message):
         if self.isInterruptionRequested():return
 
@@ -98,16 +96,8 @@ class Worker(QThread):
             if diffperc > self.descrpancy:
                 self.update_signal.emit(f"{instId} has entry chance")
                 # place limit order swap
-
         # ( debug )
         #print(self.synthbook)
-
-    # every 5 seconds, check spot holdings and position
-    # then refresh the UI
-    def fetch_account_informations(self):
-        # check current 
-        print('time to ask account infomation')
-        pass
 
     def run(self):
         while True:
@@ -120,24 +110,66 @@ class Worker(QThread):
             if len(self.synthbook)<1:
                 self.update_signal.emit(f"initialized")
             
-            # timer counter query account info
-            self.rest_api_counter+=1
-            if(self.rest_api_counter>9):
-                self.fetch_account_informations()
-                self.rest_api_counter=0
-            
             # Sleep for 1 second
             self.msleep(1000)
-            
-            
 
-            
+class MonitorWorker(QThread):
+    msg_signal = pyqtSignal(str) # msg from dialog
+    account_info_signal = pyqtSignal(str)
+    mm_rate = pyqtSignal(float)
+    def __init__(self,
+                apikey,
+                secretkey,
+                ):
+        super().__init__()
+        self.apikey = apikey
+        self.secretkey = secretkey
+        self.msg_signal.connect(self.receive_message)
+
+    # receive message dynamically from dialog
+    def receive_message(self, message):
+        msg_arr = message.split(',')
+        self.apikey = msg_arr[0]
+        self.secretkey = msg_arr[1]
+        print(f'just received {message}')
+
+    # every 5 seconds, check spot holdings and position
+    # then refresh the UI
+    def fetch_account_informations(self):
+        # check current 
+        print('time to ask account infomation')
+        self.account_info_signal.emit(f"position:")
+        pass
+
+    def run(self):
+        while(True):
+            # Sleep for 10 second
+            print("fetch account")
+            self.msleep(10000)
+
+# class for api_secret lose focus
+class FocusFilter(QObject):
+  def __init__(self, widget,callback):
+    super().__init__(widget)
+    self.widget = widget
+    self.callback = callback
+
+  def eventFilter(self, obj, event):
+    if obj == self.widget and event.type() == QEvent.FocusOut:
+      # "Line Edit lost focus!"
+      print("loseFocus")
+      if(self.callback):
+          self.callback()
+      return True  
+    else:
+      return super().eventFilter(obj, event)
 
 
 class MyDialog(QDialog):
     def __init__(self):
         super().__init__()
-
+        self.order_worker = None
+        self.monitor_worker = None
         self.setWindowTitle("FRate Arbitrageur")
         self.resize(680, 900)
 
@@ -148,7 +180,7 @@ class MyDialog(QDialog):
         main_layout.addWidget(tab_widget)
         self.setLayout(main_layout)
         tab_widget.setCurrentIndex(0)
-        self.worker = None
+        
 
     def create_monitor_tab(self):
         monitor_tab = QWidget()
@@ -175,28 +207,29 @@ class MyDialog(QDialog):
         logs_layout = QVBoxLayout()
         self.logs_textedit = QTextEdit()
         self.logs_textedit.setReadOnly(True)
-        self.logs_textedit.append("2024/04/03 09:45:23 just opened 23 AVAX")
         logs_layout.addWidget(self.logs_textedit)
         logs_groupbox.setLayout(logs_layout)
         layout.addWidget(logs_groupbox)
-
-
         layout.addSpacing(20)  # Add 20 pixels spacing
 
-        self.start_button = QPushButton("Start")
-        
-        # Connect signals
-        self.start_button.clicked.connect(self.toggle_start_button_text)
 
+        # Start Button
+        self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.toggle_start_button_text)
 
         layout.addWidget(self.start_button)
         layout.addStretch()  # Add stretch to push the start_button to the bottom
 
-
         return monitor_tab
 
-    def create_settings_tab(self):
+    def on_lose_focus(self):
+        if len(self.api_key_input.text())>0 and len(self.api_secret_input.text())>0:
+            api_key = self.api_key_input.text()
+            secret_key = self.api_secret_input.text()
+            self.monitor_worker.msg_signal.emit(f'{api_key},{secret_key}')
 
+
+    def create_settings_tab(self):
         settings = QSettings("config.ini", QSettings.IniFormat)
         settings_tab = QWidget()
         vbox = QVBoxLayout()
@@ -207,13 +240,19 @@ class MyDialog(QDialog):
         label1 = QLabel("Api Key:")
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText("api_key")
-        self.api_key_input.setText(settings.value("last_input1", ""))
+        apikey = settings.value("last_input1", "")
+        self.api_key_input.setText(apikey)
         
         label2 = QLabel("Api Secret:")
         self.api_secret_input = QLineEdit()
         self.api_secret_input.setPlaceholderText("api_secret")
         self.api_secret_input.setEchoMode(QLineEdit.Password)
-        self.api_secret_input.setText(settings.value("last_input2", ""))
+        secretkey = settings.value("last_input2", "")
+        self.api_secret_input.setText(secretkey)
+        # Install the event filter and bind lose focus event 
+        _filter = FocusFilter(self.api_secret_input,self.on_lose_focus)
+        self.api_secret_input.installEventFilter(_filter)
+
         
         label3 = QLabel("Symbol:")
         self.symbol_input = QLineEdit()
@@ -239,22 +278,22 @@ class MyDialog(QDialog):
         tab_widget = QTabWidget()
         entry_tab = QWidget()
         exit_tab = QWidget()
+        label5 = QLabel("Descrpancy: +%")
+        hbox1 = QVBoxLayout()
+        hbox1.addWidget(label5)
+        entry_tab.setLayout(hbox1)
+        label6 = QLabel("Descrpancy: -%")
         tab_widget.addTab(entry_tab, "Entry")
         tab_widget.addTab(exit_tab,"Exit")
-        tab_widget.setCurrentIndex(settings.value("entrymode", "")=='True')
+        entry_mode = int(settings.value("entrymode", 0))
+        tab_widget.setCurrentIndex(entry_mode)
         def on_tab_changed(index):
-            print(index)
-            pass
+            # save current entry mode when tab change
+            settings = QSettings("config.ini", QSettings.IniFormat)
+            settings.setValue("entrymode",index)
+            
         tab_widget.tabBarClicked.connect(on_tab_changed)
-
-
-        # save current entry mode when tab change
-        settings = QSettings("config.ini", QSettings.IniFormat)
-        settings.setValue("last_input1", self.api_key_input.text())
-
-
         groupBoxLayout.addWidget(tab_widget)
-
 
         # Set layout of groupbox
         groupBox.setLayout(groupBoxLayout)
@@ -264,6 +303,14 @@ class MyDialog(QDialog):
 
         # Set geometry of the dialog
         settings_tab.setLayout(vbox)
+
+        # when api_key & secret is valid, start worker
+        if len(apikey)>0 and len(secretkey)>0:
+            if not self.monitor_worker or not self.monitor_worker.isRunning():
+                self.monitor_worker = MonitorWorker(apikey,secretkey)
+                self.monitor_worker.start()
+                print(self.monitor_worker)
+        
         return settings_tab
 
     def toggle_start_button_text(self):
@@ -276,18 +323,23 @@ class MyDialog(QDialog):
             self.start_button.setText("Start")
 
     def start_worker(self):
-        if not self.worker or not self.worker.isRunning():
-            apikey = self.api_key_input.text()
-            secretkey = self.api_secret_input.text()
-            symbol = self.symbol_input.text()
-            self.logs_textedit.clear()
-            self.worker = Worker(apikey,secretkey,symbol)
-            self.worker.update_signal.connect(self.update_log)
-            self.worker.start()
-    
+        apikey = self.api_key_input.text()
+        secretkey = self.api_secret_input.text()
+        if len(apikey)>0 and len(secretkey)>0:
+            if not self.order_worker or not self.order_worker.isRunning():                
+                symbol = self.symbol_input.text()
+                self.logs_textedit.clear()    
+                self.order_worker = OrderWorker(apikey,secretkey,symbol)
+                self.order_worker.update_signal.connect(self.update_log)
+                self.order_worker.start()
+
+            if not self.monitor_worker or not self.monitor_worker.isRunning():
+                self.monitor_worker = MonitorWorker(apikey,secretkey)
+                self.monitor_worker.start()
+        
     def stop_worker(self):
-        if self.worker:
-            self.worker.requestInterruption()
+        if self.order_worker:
+            self.order_worker.requestInterruption()
     
     def update_log(self, message):
         self.logs_textedit.append(message)
