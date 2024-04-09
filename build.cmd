@@ -1,1 +1,1 @@
-pyinstaller -F mainapp.py
+pyinstaller --onefile --hidden-import libs.OrderWork.OrderWorker  mainapp.py
