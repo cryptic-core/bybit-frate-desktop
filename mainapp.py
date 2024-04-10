@@ -1,10 +1,9 @@
 import sys
 import json
 from PyQt5.QtCore import Qt
-from PyQt5.QtCore import QThread, pyqtSignal, QSettings
-from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit
-from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton, QSizePolicy
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSettings
+from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit
+from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton
 from libs.OrderWork import OrderWorker
 from libs.MonitorWork import MonitorWorker
 from libs.utils import FocusFilter
@@ -31,13 +30,25 @@ class MyDialog(QDialog):
         layout = QVBoxLayout()
         monitor_tab.setLayout(layout)
 
-        targets_groupbox = QGroupBox("Targets")
-        targets_layout = QVBoxLayout()
-        targets_list = QListWidget()
-        targets_list.addItems(["BTCUSDT", "DOGEUSDT"])
-        targets_layout.addWidget(targets_list)
-        targets_groupbox.setLayout(targets_layout)
-        layout.addWidget(targets_groupbox)
+        info_group_box = QGroupBox("Information")
+        info_layout = QVBoxLayout() 
+        self.lbb_spot_px = QLabel(f"Spot Price:")
+        self.lbb_spot_px.setAlignment(Qt.AlignLeft)
+        self.lbb_swap_px = QLabel(f"Perp Price")
+        self.lbb_swap_px.setAlignment(Qt.AlignLeft)  
+        self.lbb_desc_pc = QLabel(f"Difference")
+        self.lbb_desc_pc.setAlignment(Qt.AlignLeft)  
+
+        # Create horizontal layout for each info line
+        info_line_layout = QHBoxLayout()
+        info_line_layout.addWidget(self.lbb_spot_px)
+        info_line_layout.addWidget(self.lbb_swap_px)
+        info_line_layout.addWidget(self.lbb_desc_pc)
+        #info_line_layout.setStretch(0, 0) # Stretch label1 to fill remaining space
+        info_layout.addLayout(info_line_layout)
+        info_group_box.setLayout(info_layout)
+        layout.addWidget(info_group_box)
+
 
         holdings_groupbox = QGroupBox("Holdings")
         holdings_layout = QVBoxLayout()
@@ -248,6 +259,9 @@ class MyDialog(QDialog):
         spot_px = agbooks_dict['spot']
         swap_px = agbooks_dict['swap']
         difperc = agbooks_dict['perc']
+        self.lbb_spot_px.setText(f'Spot Price: {str(spot_px)}')
+        self.lbb_swap_px.setText(f'Perp Price: {str(swap_px)}')
+        self.lbb_desc_pc.setText(f'Difference: {str(difperc)}%')
         # debug
         # print(f'spot px:{spot_px} swap_px:{swap_px} difperc:{difperc}')
         

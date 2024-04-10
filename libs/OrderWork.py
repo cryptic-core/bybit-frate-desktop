@@ -55,10 +55,10 @@ class OrderWorker(QThread):
                 'SwASz':float(message['data']['a'][0][1]),
             }
         else:
-            self.synthbook[instId]['bidPx']=float(message['data']['b'][0][0])
-            self.synthbook[instId]['bidSz']=float(message['data']['b'][0][1])
-            self.synthbook[instId]['askPx']=float(message['data']['a'][0][0])
-            self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
+            self.synthbook[instId]['SwBPx']=float(message['data']['b'][0][0])
+            self.synthbook[instId]['SwBSz']=float(message['data']['b'][0][1])
+            self.synthbook[instId]['SwAPx']=float(message['data']['a'][0][0])
+            self.synthbook[instId]['SwASz']=float(message['data']['a'][0][1])
         self.aggregate_book()
     
     def handle_spot_message(self,message):
