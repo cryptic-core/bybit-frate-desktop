@@ -2,21 +2,23 @@ import sys
 import json
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QSettings
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTextEdit
 from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton
 from libs.OrderWork import OrderWorker
 from libs.MonitorWork import MonitorWorker
 from libs.utils import FocusFilter
-
+from ui.Widgets import TableWidget
 
 class MyDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.order_worker = None
         self.monitor_worker = None
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        self.target_symbol = settings.value("symbol","")
         self.setWindowTitle("FRate Arbitrageur")
-        self.resize(680, 900)
-
+        self.resize(780, 900)
         main_layout = QVBoxLayout()
         tab_widget = QTabWidget()
         tab_widget.addTab(self.create_monitor_tab(), "Monitor")
@@ -26,15 +28,16 @@ class MyDialog(QDialog):
         tab_widget.setCurrentIndex(0)
         
     def create_monitor_tab(self):
+
         monitor_tab = QWidget()
         layout = QVBoxLayout()
         monitor_tab.setLayout(layout)
 
-        info_group_box = QGroupBox("Information")
+        info_group_box = QGroupBox("Price Info")
         info_layout = QVBoxLayout() 
-        self.lbb_spot_px = QLabel(f"Spot Price:")
+        self.lbb_spot_px = QLabel(f"{self.target_symbol} Spot:")
         self.lbb_spot_px.setAlignment(Qt.AlignLeft)
-        self.lbb_swap_px = QLabel(f"Perp Price")
+        self.lbb_swap_px = QLabel(f"{self.target_symbol} Perp:")
         self.lbb_swap_px.setAlignment(Qt.AlignLeft)  
         self.lbb_desc_pc = QLabel(f"Difference")
         self.lbb_desc_pc.setAlignment(Qt.AlignLeft)  
@@ -50,11 +53,49 @@ class MyDialog(QDialog):
         layout.addWidget(info_group_box)
 
 
-        holdings_groupbox = QGroupBox("Holdings")
+        accinfo_grp_box = QGroupBox("Account Info")
+        accinfo_layout = QHBoxLayout()
+        self.lbb_acc_balance = QLabel("Account Balance: 45142")
+        self.lbb_acc_balance.setAlignment(Qt.AlignLeft)
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True) 
+        self.lbb_acc_balance.setFont(font)
+        accinfo_layout.addWidget(self.lbb_acc_balance)
+        self.lbb_im_rate = QLabel("IM Rate: 45%")
+        self.lbb_im_rate.setAlignment(Qt.AlignLeft)
+        accinfo_layout.addWidget(self.lbb_im_rate)
+        self.lbb_mm_rate = QLabel("MM Rate: 15%")
+        self.lbb_mm_rate.setAlignment(Qt.AlignLeft)
+        accinfo_layout.addWidget(self.lbb_mm_rate)
+        accinfo_grp_box.setLayout(accinfo_layout)
+        layout.addWidget(accinfo_grp_box)
+
+        yieldinfo_grp_box = QGroupBox("Yield Info")
+        yieldinfo_layout = QHBoxLayout()
+        self.lbb_real_income_8h = QLabel("Real Income 8H:       $18.135 usd")
+        self.lbb_real_income_8h.setAlignment(Qt.AlignLeft)
+        yieldinfo_layout.addWidget(self.lbb_real_income_8h)
+        self.lbb_apy_8h = QLabel("APY 8H:       56%")
+        self.lbb_apy_8h.setAlignment(Qt.AlignLeft)
+        yieldinfo_layout.addWidget(self.lbb_apy_8h)
+        yieldinfo_grp_box.setLayout(yieldinfo_layout)
+        layout.addWidget(yieldinfo_grp_box)
+
+
+        lendinfo_grp_box = QGroupBox("Lending Info")
+        lendinfo_layout = QHBoxLayout()
+        self.lbb_lendrate_8h = QLabel("Lending rate 8hr:   10%")
+        self.lbb_lendrate_8h.setAlignment(Qt.AlignLeft)
+        lendinfo_layout.addWidget(self.lbb_lendrate_8h)
+        lendinfo_grp_box.setLayout(lendinfo_layout)
+        layout.addWidget(lendinfo_grp_box)
+
+
+        holdings_groupbox = QGroupBox("Positions")
         holdings_layout = QVBoxLayout()
-        holdings_list = QListWidget()
-        holdings_list.addItems(["BTCUSDT", "DOGEUSDT"])
-        holdings_layout.addWidget(holdings_list)
+        self.table_widget = TableWidget()
+        holdings_layout.addWidget(self.table_widget)
         holdings_groupbox.setLayout(holdings_layout)
         layout.addWidget(holdings_groupbox)
 
@@ -83,11 +124,14 @@ class MyDialog(QDialog):
         return monitor_tab
 
     # when user input secretkey completed
-    def on_lose_focus(self):
+    def on_secret_lose_focus(self):
         if len(self.api_key_input.text())>0 and len(self.api_secret_input.text())>0:
             api_key = self.api_key_input.text()
             secret_key = self.api_secret_input.text()
             self.monitor_worker.secretkey_signal.emit(f'{api_key},{secret_key}')
+    
+    def on_symbol_lose_focus(self):
+        self.target_symbol = self.symbol_input.text()
 
     def create_settings_tab(self):
         settings = QSettings("config.ini", QSettings.IniFormat)
@@ -110,7 +154,7 @@ class MyDialog(QDialog):
         secretkey = settings.value("last_input2", "")
         self.api_secret_input.setText(secretkey)
         # Install the event filter and bind lose focus event 
-        _filter = FocusFilter(self.api_secret_input,self.on_lose_focus)
+        _filter = FocusFilter(self.api_secret_input,self.on_secret_lose_focus)
         self.api_secret_input.installEventFilter(_filter)
 
         
@@ -118,6 +162,8 @@ class MyDialog(QDialog):
         self.symbol_input = QLineEdit()
         self.symbol_input.setPlaceholderText("DOGEUSDT")
         self.symbol_input.setText(settings.value("symbol", ""))
+        _filter = FocusFilter(self.symbol_input,self.on_symbol_lose_focus)
+        self.symbol_input.installEventFilter(_filter)
         
         label4 = QLabel("Do not over this MM Rate Limit(%)")
         self.mmrate_input = QLineEdit()
@@ -259,8 +305,8 @@ class MyDialog(QDialog):
         spot_px = agbooks_dict['spot']
         swap_px = agbooks_dict['swap']
         difperc = agbooks_dict['perc']
-        self.lbb_spot_px.setText(f'Spot Price: {str(spot_px)}')
-        self.lbb_swap_px.setText(f'Perp Price: {str(swap_px)}')
+        self.lbb_spot_px.setText(f'{self.target_symbol} Spot: {str(spot_px)}')
+        self.lbb_swap_px.setText(f'{self.target_symbol} Perp: {str(swap_px)}')
         self.lbb_desc_pc.setText(f'Difference: {str(difperc)}%')
         # debug
         # print(f'spot px:{spot_px} swap_px:{swap_px} difperc:{difperc}')
