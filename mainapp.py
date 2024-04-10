@@ -107,7 +107,7 @@ class MyDialog(QDialog):
         self.symbol_input.setPlaceholderText("DOGEUSDT")
         self.symbol_input.setText(settings.value("symbol", ""))
         
-        label4 = QLabel("MM Rate Limit(%)")
+        label4 = QLabel("Do not over this MM Rate Limit(%)")
         self.mmrate_input = QLineEdit()
         self.mmrate_input.setPlaceholderText("30")
         self.mmrate_input.setText(settings.value("mmrate", ""))
@@ -131,18 +131,33 @@ class MyDialog(QDialog):
         self.entry_dif = QLineEdit()
         self.entry_dif.setPlaceholderText("0.1")
         self.entry_dif.setText(settings.value("entrydif", ""))
+
+        label6 = QLabel("Target Size")
+        self.tgt_amt_entry = QLineEdit()
+        self.tgt_amt_entry.setPlaceholderText("10000")
+        self.tgt_amt_entry.setText(settings.value("tgtentrysz", ""))
+
         hbox1 = QVBoxLayout()
         hbox1.addWidget(label5)
         hbox1.addWidget(self.entry_dif)
+        hbox1.addWidget(label6)
+        hbox1.addWidget(self.tgt_amt_entry)
         entry_tab.setLayout(hbox1)
 
-        label6 = QLabel("Descrpancy: -%")
+        label7 = QLabel("Descrpancy: -%")
         self.exit_dif = QLineEdit()
         self.exit_dif.setPlaceholderText("0.1")
         self.exit_dif.setText(settings.value("exitdif", ""))
+        label8 = QLabel("Target Size")
+        self.tgt_amt_exit = QLineEdit()
+        self.tgt_amt_exit.setPlaceholderText("0")
+        self.tgt_amt_exit.setText(settings.value("tgtexitsz", ""))
+
         hbox2 = QVBoxLayout()
-        hbox2.addWidget(label6)
+        hbox2.addWidget(label7)
         hbox2.addWidget(self.exit_dif)
+        hbox2.addWidget(label8)
+        hbox2.addWidget(self.tgt_amt_exit)
         exit_tab.setLayout(hbox2)
 
         tab_widget.addTab(entry_tab, "Entry")
@@ -231,7 +246,8 @@ class MyDialog(QDialog):
         settings.setValue("mmrate", self.mmrate_input.text())
         settings.setValue("entrydif", self.entry_dif.text())
         settings.setValue("exitdif", self.exit_dif.text())
-        
+        settings.setValue("tgtentrysz", self.tgt_amt_entry.text())
+        settings.setValue("tgtexitsz", self.tgt_amt_exit.text())
         super().closeEvent(event)
 
 if __name__ == "__main__":
