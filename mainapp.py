@@ -1,4 +1,5 @@
 import sys
+import json
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit
@@ -168,9 +169,7 @@ class MyDialog(QDialog):
             # save current entry mode when tab change
             settings = QSettings("config.ini", QSettings.IniFormat)
             settings.setValue("entrymode",index)
-            curmode = "Exit"
-            if index == 0:
-                curmode = "Entry"
+            curmode = "Entry" if index==0 else "Exit"
             self.start_button.setText(f"Start {curmode}")
             
         tab_widget.tabBarClicked.connect(on_tab_changed)
@@ -197,12 +196,16 @@ class MyDialog(QDialog):
 
     def toggle_start_button_text(self):
         current_text = self.start_button.text()
-        if current_text == "Start":
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        mode = int(settings.value("entrymode",0))
+        curmode = "Entry" if mode==0 else "Exit"
+        if current_text == f"Start {curmode}":
             self.start_worker()
             self.start_button.setText("Stop")
         else:
             self.stop_worker()
-            self.start_button.setText("Start")
+            self.start_button.setText(f"Start {curmode}")
+            
 
     def start_worker(self):
         apikey = self.api_key_input.text()
@@ -210,9 +213,15 @@ class MyDialog(QDialog):
         if len(apikey)>0 and len(secretkey)>0:
             if not self.order_worker or not self.order_worker.isRunning():                
                 symbol = self.symbol_input.text()
-                self.logs_textedit.clear()    
-                self.order_worker = OrderWorker(apikey,secretkey,symbol)
-                self.order_worker.update_signal.connect(self.update_log)
+                settings = QSettings("config.ini", QSettings.IniFormat)
+                mode = int(settings.value("entrymode",0))
+                descrpancy = float(self.entry_dif.text()) if mode==0 else float(self.exit_dif.text())
+                descrpancy *= 0.01
+                tgtsz = float(self.tgt_amt_entry.text()) if mode==0 else float(self.tgt_amt_exit.text())
+                self.logs_textedit.clear()
+                self.order_worker = OrderWorker(apikey,secretkey,symbol,descrpancy,mode,tgtsz)
+                self.order_worker.order_res_to_dlg.connect(self.update_log)
+                self.order_worker.aggregate_book_to_dlg.connect(self.on_aggregate_book)
                 self.order_worker.start()
 
             if not self.monitor_worker or not self.monitor_worker.isRunning():
@@ -234,6 +243,15 @@ class MyDialog(QDialog):
         if self.order_worker:
             self.order_worker.requestInterruption()
     
+    def on_aggregate_book(self,agbooks):
+        agbooks_dict = json.loads(agbooks)
+        spot_px = agbooks_dict['spot']
+        swap_px = agbooks_dict['swap']
+        difperc = agbooks_dict['perc']
+        # debug
+        # print(f'spot px:{spot_px} swap_px:{swap_px} difperc:{difperc}')
+        
+
     def update_log(self, message):
         self.logs_textedit.append(message)
 

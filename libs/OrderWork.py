@@ -1,26 +1,29 @@
 import sys
+import json
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import WebSocket
 
 # Order processor class
 class OrderWorker(QThread):
-    update_signal = pyqtSignal(str)
-
+    order_res_to_dlg = pyqtSignal(str)
+    aggregate_book_to_dlg = pyqtSignal(str)
+    pyqtSignal(str)
     def __init__(self,
                  apikey,
                  secretkey,
                  symbol='DOGEUSDT',
                  descrpancy=0.001,
+                 mode=0,
+                 targetsz=0
                  ):
         super().__init__()
         self.apikey = apikey
         self.secretkey = secretkey
         self.symbol=symbol
         self.descrpancy = descrpancy
-
-        # time interval to request current holdings
-        self.rest_api_counter = 0
+        self.mode='entry' if mode==0 else 'exit'
+        self.targetsz = targetsz
 
         self.wsspot = WebSocket(
             testnet=False,
@@ -87,12 +90,32 @@ class OrderWorker(QThread):
         pass
     
     def aggregate_book(self):
-        for instId in self.synthbook:
+        instId = list(self.synthbook.keys())[0] # this tool only care one symbol at a time
+        # update aggregate book info back to dialog
+        aggregate_book = {"spot":0,"swap":0,"perc":''}
+        if self.mode == 'entry':
             diff = self.synthbook[instId]['SwBPx']-self.synthbook[instId]['askPx']
-            diffperc = diff/self.synthbook[instId]['SwBPx']
+            diffperc = diff/self.synthbook[instId]['SwBPx']  
+            aggregate_book['spot'] = self.synthbook[instId]['askPx']
+            aggregate_book['swap'] = self.synthbook[instId]['SwBPx']
+            aggregate_book['perc'] = "{:.2f}".format(diffperc * 100)
+            # send curr price info back to dlg
+            self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
+            # check should entry
             if diffperc > self.descrpancy:
-                self.update_signal.emit(f"{instId} has entry chance")
+                pass
                 # place limit order swap
+        else:
+            diff = self.synthbook[instId]['SwAPx']-self.synthbook[instId]['bidPx']
+            diffperc = diff/self.synthbook[instId]['bidPx']
+            aggregate_book['spot'] = self.synthbook[instId]['bidPx']
+            aggregate_book['swap'] = self.synthbook[instId]['SwAPx']
+            aggregate_book['perc'] = "{:.2f}".format(diffperc * 100)
+            # send curr price info back to dlg
+            self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
+            # check should exit
+            if diffperc < self.descrpancy:
+                pass
         # ( debug )
         #print(self.synthbook)
                 
@@ -109,7 +132,7 @@ class OrderWorker(QThread):
 
             # worker initialization log
             if len(self.synthbook)<1:
-                self.update_signal.emit(f"initialized")
+                self.order_res_to_dlg.emit(f"initialized")
             
             # Sleep for 1 second
             self.msleep(1000)
