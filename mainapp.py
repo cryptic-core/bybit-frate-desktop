@@ -5,40 +5,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, 
 from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton, QSizePolicy
 from PyQt5.QtCore import QSize
 from libs.OrderWork import OrderWorker
-
-class MonitorWorker(QThread):
-    msg_signal = pyqtSignal(str) # msg from dialog
-    account_info_signal = pyqtSignal(str)
-    mm_rate = pyqtSignal(float)
-    def __init__(self,
-                apikey,
-                secretkey,
-                ):
-        super().__init__()
-        self.apikey = apikey
-        self.secretkey = secretkey
-        self.msg_signal.connect(self.receive_message)
-
-    # receive message dynamically from dialog
-    def receive_message(self, message):
-        msg_arr = message.split(',')
-        self.apikey = msg_arr[0]
-        self.secretkey = msg_arr[1]
-        print(f'just received {message}')
-
-    # every 5 seconds, check spot holdings and position
-    # then refresh the UI
-    def fetch_account_informations(self):
-        # check current 
-        print('time to ask account infomation')
-        self.account_info_signal.emit(f"position:")
-        pass
-
-    def run(self):
-        while(True):
-            # Sleep for 10 second
-            print("fetch account")
-            self.msleep(10000)
+from libs.MonitorWork import MonitorWorker
 
 # class for api_secret lose focus
 class FocusFilter(QObject):
@@ -115,12 +82,12 @@ class MyDialog(QDialog):
 
         return monitor_tab
 
+    # when user input secretkey completed
     def on_lose_focus(self):
         if len(self.api_key_input.text())>0 and len(self.api_secret_input.text())>0:
             api_key = self.api_key_input.text()
             secret_key = self.api_secret_input.text()
-            self.monitor_worker.msg_signal.emit(f'{api_key},{secret_key}')
-
+            self.monitor_worker.secretkey_signal.emit(f'{api_key},{secret_key}')
 
     def create_settings_tab(self):
         settings = QSettings("config.ini", QSettings.IniFormat)
@@ -201,6 +168,7 @@ class MyDialog(QDialog):
         if len(apikey)>0 and len(secretkey)>0:
             if not self.monitor_worker or not self.monitor_worker.isRunning():
                 self.monitor_worker = MonitorWorker(apikey,secretkey)
+                self.monitor_worker.account_info_to_dlg.connect(self.update_log)
                 self.monitor_worker.start()
                 print(self.monitor_worker)
         
@@ -228,7 +196,19 @@ class MyDialog(QDialog):
 
             if not self.monitor_worker or not self.monitor_worker.isRunning():
                 self.monitor_worker = MonitorWorker(apikey,secretkey)
+                self.monitor_worker.account_info_to_dlg.connect(self.update_log)
+                # connect order worker if it is active
+                if self.order_worker:
+                    self.monitor_worker.account_info_signal.connect(self.order_worker.on_account_info_msg)
+                # start monitor
                 self.monitor_worker.start()
+            else:
+                # monitor is already started, just connect them
+                self.monitor_worker.account_info_to_dlg.connect(self.update_log)
+                # connect order worker if it is active
+                if self.order_worker:
+                    self.monitor_worker.account_info_signal.connect(self.order_worker.on_account_info_msg)
+
         
     def stop_worker(self):
         if self.order_worker:

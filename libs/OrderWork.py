@@ -1,9 +1,9 @@
-
 import sys
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import WebSocket
 
+# Order processor class
 class OrderWorker(QThread):
     update_signal = pyqtSignal(str)
 
@@ -95,6 +95,10 @@ class OrderWorker(QThread):
                 # place limit order swap
         # ( debug )
         #print(self.synthbook)
+                
+    # receive account info from monitor worker class
+    def on_account_info_msg(self,msg):
+        print(f'on receive {msg} from monitor')
 
     def run(self):
         while True:
