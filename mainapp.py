@@ -1,28 +1,12 @@
 import sys
-from PyQt5.QtCore import Qt,QEvent,QObject
+from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from PyQt5.QtWidgets import QApplication, QWidget, QDialog, QLabel, QTabWidget, QVBoxLayout, QLineEdit, QCheckBox, QTextEdit
 from PyQt5.QtWidgets import QGroupBox, QListWidget, QPushButton, QSizePolicy
 from PyQt5.QtCore import QSize
 from libs.OrderWork import OrderWorker
 from libs.MonitorWork import MonitorWorker
-
-# class for api_secret lose focus
-class FocusFilter(QObject):
-  def __init__(self, widget,callback):
-    super().__init__(widget)
-    self.widget = widget
-    self.callback = callback
-
-  def eventFilter(self, obj, event):
-    if obj == self.widget and event.type() == QEvent.FocusOut:
-      # "Line Edit lost focus!"
-      print("loseFocus")
-      if(self.callback):
-          self.callback()
-      return True  
-    else:
-      return super().eventFilter(obj, event)
+from libs.utils import FocusFilter
 
 
 class MyDialog(QDialog):
@@ -41,7 +25,6 @@ class MyDialog(QDialog):
         self.setLayout(main_layout)
         tab_widget.setCurrentIndex(0)
         
-
     def create_monitor_tab(self):
         monitor_tab = QWidget()
         layout = QVBoxLayout()
@@ -74,7 +57,12 @@ class MyDialog(QDialog):
 
 
         # Start Button
-        self.start_button = QPushButton("Start")
+        curmode = 'Entry'
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        mode_id = int(settings.value("entrymode",0))
+        if(mode_id==1):
+            curmode = 'Exit'
+        self.start_button = QPushButton(f"Start {curmode}")
         self.start_button.clicked.connect(self.toggle_start_button_text)
 
         layout.addWidget(self.start_button)
@@ -124,6 +112,7 @@ class MyDialog(QDialog):
         self.mmrate_input.setPlaceholderText("30")
         self.mmrate_input.setText(settings.value("mmrate", ""))
 
+
         # Add labels and text input fields to groupbox layout
         groupBoxLayout.addWidget(label1)
         groupBoxLayout.addWidget(self.api_key_input)
@@ -139,10 +128,23 @@ class MyDialog(QDialog):
         entry_tab = QWidget()
         exit_tab = QWidget()
         label5 = QLabel("Descrpancy: +%")
+        self.entry_dif = QLineEdit()
+        self.entry_dif.setPlaceholderText("0.1")
+        self.entry_dif.setText(settings.value("entrydif", ""))
         hbox1 = QVBoxLayout()
         hbox1.addWidget(label5)
+        hbox1.addWidget(self.entry_dif)
         entry_tab.setLayout(hbox1)
+
         label6 = QLabel("Descrpancy: -%")
+        self.exit_dif = QLineEdit()
+        self.exit_dif.setPlaceholderText("0.1")
+        self.exit_dif.setText(settings.value("exitdif", ""))
+        hbox2 = QVBoxLayout()
+        hbox2.addWidget(label6)
+        hbox2.addWidget(self.exit_dif)
+        exit_tab.setLayout(hbox2)
+
         tab_widget.addTab(entry_tab, "Entry")
         tab_widget.addTab(exit_tab,"Exit")
         entry_mode = int(settings.value("entrymode", 0))
@@ -151,6 +153,10 @@ class MyDialog(QDialog):
             # save current entry mode when tab change
             settings = QSettings("config.ini", QSettings.IniFormat)
             settings.setValue("entrymode",index)
+            curmode = "Exit"
+            if index == 0:
+                curmode = "Entry"
+            self.start_button.setText(f"Start {curmode}")
             
         tab_widget.tabBarClicked.connect(on_tab_changed)
         groupBoxLayout.addWidget(tab_widget)
@@ -208,8 +214,7 @@ class MyDialog(QDialog):
                 # connect order worker if it is active
                 if self.order_worker:
                     self.monitor_worker.account_info_signal.connect(self.order_worker.on_account_info_msg)
-
-        
+    
     def stop_worker(self):
         if self.order_worker:
             self.order_worker.requestInterruption()
@@ -223,6 +228,10 @@ class MyDialog(QDialog):
         settings.setValue("last_input1", self.api_key_input.text())
         settings.setValue("last_input2", self.api_secret_input.text())
         settings.setValue("symbol", self.symbol_input.text())
+        settings.setValue("mmrate", self.mmrate_input.text())
+        settings.setValue("entrydif", self.entry_dif.text())
+        settings.setValue("exitdif", self.exit_dif.text())
+        
         super().closeEvent(event)
 
 if __name__ == "__main__":
