@@ -277,7 +277,7 @@ class MyDialog(QDialog):
                 tgtsz = float(self.tgt_amt_entry.text()) if mode==0 else float(self.tgt_amt_exit.text())
                 self.logs_textedit.clear()
                 self.order_worker = OrderWorker(apikey,secretkey,symbol,descrpancy,mode,tgtsz)
-                self.order_worker.order_res_to_dlg.connect(self.update_log)
+                self.order_worker.order_res_to_dlg.connect(self.update_order_log)
                 self.order_worker.aggregate_book_to_dlg.connect(self.on_aggregate_book)
                 self.order_worker.start()
 
@@ -313,6 +313,9 @@ class MyDialog(QDialog):
         
 
     def update_log(self, message):
+        self.logs_textedit.append(message)
+    
+    def update_order_log(self, message):
         self.logs_textedit.append(message)
 
     def closeEvent(self, event):

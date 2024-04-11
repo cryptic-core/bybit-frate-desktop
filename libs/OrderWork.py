@@ -141,13 +141,14 @@ class OrderWorker(QThread):
         if isLinear:
             qty = float(ordinfo['qty'])
             symb = ordinfo['symbol']
-            usdNotion = float(self.synthbook[symb]['askPx'])*qty
+            #usdNotion = float(self.synthbook[symb]['askPx'])*qty
             ordres = self.session.place_order(
                 category="spot",
                 symbol=symb,
+                marketUnit='baseCoin',
                 side="Buy" if self.mode=='entry' else "Sell",
                 orderType="Market",
-                qty=str(usdNotion),
+                qty=str(qty),
             )
             #print('on swap filled')
             #print(ordres)
