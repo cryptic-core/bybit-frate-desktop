@@ -60,7 +60,7 @@ class MyDialog(QDialog):
         font = QFont()
         font.setPointSize(16)
         font.setBold(True) 
-        self.lbb_acc_balance.setFont(font)
+        #self.lbb_acc_balance.setFont(font)
         accinfo_layout.addWidget(self.lbb_acc_balance)
         self.lbb_im_rate = QLabel("IM Rate: 45%")
         self.lbb_im_rate.setAlignment(Qt.AlignLeft)

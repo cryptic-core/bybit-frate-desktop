@@ -3,6 +3,7 @@ import json
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import WebSocket
+from pybit.unified_trading import HTTP
 
 # Order processor class
 class OrderWorker(QThread):
@@ -24,15 +25,29 @@ class OrderWorker(QThread):
         self.descrpancy = descrpancy
         self.mode='entry' if mode==0 else 'exit'
         self.targetsz = targetsz
-
+        bTestnet = False
+        self.session = HTTP(
+            testnet=bTestnet,
+            api_key=apikey,
+            api_secret=secretkey,
+        )
         self.wsspot = WebSocket(
-            testnet=False,
+            testnet=bTestnet,
             channel_type="spot",
         )
         self.wsperp = WebSocket(
-            testnet=False,
+            testnet=bTestnet,
             channel_type="linear",
         )
+        self.ws_private = WebSocket(
+            testnet=bTestnet,
+            channel_type="private",
+            api_key=apikey,
+            api_secret=secretkey,
+            trace_logging=False,
+        )
+        self.ws_private.order_stream(self.handle_order_message)
+        
         self.synthbook = {}
         # https://api.bybit.com/derivatives/v3/public/instruments-info
         self.wsspot.orderbook_stream(1, self.symbol, self.handle_spot_message)
@@ -84,11 +99,34 @@ class OrderWorker(QThread):
             self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
         self.aggregate_book()
     
+    # symbol order size
+    # https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=DOGEUSDT&status=Trading
     def handle_order_message(self,message):
-        # if perp order just filled 
-        # check num filled and market order spot
-        pass
-    
+        if self.isInterruptionRequested():return
+        if not 'data' in message:return
+        ordinfo = message['data'][-1]
+        isFilled = ordinfo['orderStatus']=='Filled'
+        if not isFilled:return
+        tgt_side = "Sell" if self.mode=='entry' else "Buy"
+        isSideMatch = tgt_side == ordinfo['side']
+        if not isSideMatch:return
+        isLinear = ordinfo['category']=='linear'
+        if isLinear:
+            qty = ordinfo['qty']
+            symb = ordinfo['symbol']
+            ordres = self.session.place_order(
+                category="spot",
+                symbol=symb,
+                side="Buy" if self.mode=='entry' else "Sell",
+                orderType="Market",
+                qty=qty,
+            )
+            print(ordres)
+            if 'orderId' in ordres:
+                self.order_res_to_dlg.emit(f"just create {qty} {symb} position")
+        else: # if spot is filled, 
+            qty = ordinfo['qty']
+
     def aggregate_book(self):
         instId = list(self.synthbook.keys())[0] # this tool only care one symbol at a time
         # update aggregate book info back to dialog

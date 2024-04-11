@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
-from pybit.unified_trading import WebSocket
+from pybit.unified_trading import HTTP
 
 # Account information class
 class MonitorWorker(QThread):
@@ -17,6 +17,12 @@ class MonitorWorker(QThread):
         self.apikey = apikey
         self.secretkey = secretkey
         self.secretkey_signal.connect(self.receive_message)
+        self.session = HTTP(
+            testnet=False,
+            api_key=apikey,
+            api_secret=secretkey,
+        )
+
 
     # receive message dynamically from dialog
     def receive_message(self, message):
@@ -30,6 +36,9 @@ class MonitorWorker(QThread):
     def fetch_account_informations(self):
         # check current 
         print('time to ask account infomation')
+
+
+
         # send account info to Order Worker
         self.account_info_signal.emit(f"position:here")
         # send account info to UI
