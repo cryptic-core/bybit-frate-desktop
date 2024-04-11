@@ -1,5 +1,6 @@
-import sys
+import math
 import json
+import time
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import WebSocket
@@ -25,12 +26,35 @@ class OrderWorker(QThread):
         self.descrpancy = descrpancy
         self.mode='entry' if mode==0 else 'exit'
         self.targetsz = targetsz
+
+        # inner infomation
+        self.asset_info = {}
+        self.position = {}
+        self.spotholding = {}
+
         bTestnet = False
         self.session = HTTP(
             testnet=bTestnet,
             api_key=apikey,
             api_secret=secretkey,
         )
+        info_spot = self.session.get_instruments_info(
+            category="spot",
+            symbol=self.symbol,
+        )
+        info_swap = self.session.get_instruments_info(
+            category="linear",
+            symbol=self.symbol,
+        )
+        min_spot_amt = float(info_spot['result']['list'][0]['lotSizeFilter']['minOrderQty'])
+        min_ord_swap = float(info_swap['result']['list'][0]['lotSizeFilter']['minOrderQty'])
+        min_sz = max(min_ord_swap,min_spot_amt)
+        ord_step = float(info_swap['result']['list'][0]['lotSizeFilter']['qtyStep'])
+        multiplier = math.ceil(min_sz/ord_step)
+        self.min_ord = multiplier * ord_step
+
+        self.priceScale = float(info_swap['result']['list'][0]['priceScale'])
+        self.lastordertime = time.time()
         self.wsspot = WebSocket(
             testnet=bTestnet,
             channel_type="spot",
@@ -47,12 +71,15 @@ class OrderWorker(QThread):
             trace_logging=False,
         )
         self.ws_private.order_stream(self.handle_order_message)
+        self.ws_private.position_stream(self.handle_cur_position)
+        self.ws_private.wallet_stream(self.handle_cur_wallet)
         
         self.synthbook = {}
         # https://api.bybit.com/derivatives/v3/public/instruments-info
         self.wsspot.orderbook_stream(1, self.symbol, self.handle_spot_message)
         self.wsperp.orderbook_stream(1, self.symbol, self.handle_perp_message)
-        
+
+    
     def handle_perp_message(self,message):
         if self.isInterruptionRequested():return
 
@@ -112,20 +139,32 @@ class OrderWorker(QThread):
         if not isSideMatch:return
         isLinear = ordinfo['category']=='linear'
         if isLinear:
-            qty = ordinfo['qty']
+            qty = float(ordinfo['qty'])
             symb = ordinfo['symbol']
+            usdNotion = float(self.synthbook[symb]['askPx'])*qty
             ordres = self.session.place_order(
                 category="spot",
                 symbol=symb,
                 side="Buy" if self.mode=='entry' else "Sell",
                 orderType="Market",
-                qty=qty,
+                qty=str(usdNotion),
             )
-            print(ordres)
+            #print('on swap filled')
+            #print(ordres)
             if 'orderId' in ordres:
                 self.order_res_to_dlg.emit(f"just create {qty} {symb} position")
         else: # if spot is filled, 
             qty = ordinfo['qty']
+
+    def handle_cur_position(self,message):
+        #print(message)
+        #print('handle position')
+        pass
+
+    def handle_cur_wallet(self,message):
+        #print(message)
+        #print('handle wallet')
+        pass
 
     def aggregate_book(self):
         instId = list(self.synthbook.keys())[0] # this tool only care one symbol at a time
@@ -139,10 +178,26 @@ class OrderWorker(QThread):
             aggregate_book['perc'] = "{:.2f}".format(diffperc * 100)
             # send curr price info back to dlg
             self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
+
+            # time filter
+            curtime = time.time()
+            if (curtime - self.lastordertime)<1.5:return
+            self.lastordertime = time.time()
+            
             # check should entry
-            if diffperc > self.descrpancy:
-                pass
+            if diffperc > self.descrpancy:    
                 # place limit order swap
+                # print(f'try to place limit order {curtime}')
+                res = self.session.place_order(
+                    category="linear",
+                    symbol=instId,
+                    side="Sell" if self.mode=='entry' else 'Buy',
+                    orderType="Limit",
+                    price=self.synthbook[instId]['SwAPx'],
+                    qty=str(self.min_ord),
+                )
+                if res['retCode'] != 0:
+                    print(res['retMsg'])
         else:
             diff = self.synthbook[instId]['SwAPx']-self.synthbook[instId]['bidPx']
             diffperc = diff/self.synthbook[instId]['bidPx']
@@ -151,6 +206,9 @@ class OrderWorker(QThread):
             aggregate_book['perc'] = "{:.2f}".format(diffperc * 100)
             # send curr price info back to dlg
             self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
+
+            curtime = time.time()
+            if (curtime - self.lastordertime)<1000:return
             # check should exit
             if diffperc < self.descrpancy:
                 pass
@@ -159,7 +217,8 @@ class OrderWorker(QThread):
                 
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
-        print(f'on receive {msg} from monitor')
+        pass
+        #print(f'on receive {msg} from monitor')
 
     def run(self):
         while True:

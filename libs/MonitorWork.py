@@ -37,7 +37,11 @@ class MonitorWorker(QThread):
         # check current 
         print('time to ask account infomation')
 
-
+        info_swap = self.session.get_instruments_info(
+            category="linear",
+            symbol='DOGEUSDT',
+        )
+        funding_interval = info_swap['result']['list'][0]['fundingInterval']
 
         # send account info to Order Worker
         self.account_info_signal.emit(f"position:here")
