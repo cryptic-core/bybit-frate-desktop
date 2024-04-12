@@ -28,6 +28,7 @@ class OrderWorker(QThread):
         self.targetsz = targetsz
 
         # inner infomation
+        self.swap_order_id = ''
         self.asset_info = {}
         self.position = {}
         self.spotholding = {}
@@ -126,47 +127,6 @@ class OrderWorker(QThread):
             self.synthbook[instId]['askSz']=float(message['data']['a'][0][1])
         self.aggregate_book()
     
-    # symbol order size
-    # https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=DOGEUSDT&status=Trading
-    def handle_order_message(self,message):
-        if self.isInterruptionRequested():return
-        if not 'data' in message:return
-        ordinfo = message['data'][-1]
-        isFilled = ordinfo['orderStatus']=='Filled'
-        if not isFilled:return
-        tgt_side = "Sell" if self.mode=='entry' else "Buy"
-        isSideMatch = tgt_side == ordinfo['side']
-        if not isSideMatch:return
-        isLinear = ordinfo['category']=='linear'
-        if isLinear:
-            qty = float(ordinfo['qty'])
-            symb = ordinfo['symbol']
-            #usdNotion = float(self.synthbook[symb]['askPx'])*qty
-            ordres = self.session.place_order(
-                category="spot",
-                symbol=symb,
-                marketUnit='baseCoin',
-                side="Buy" if self.mode=='entry' else "Sell",
-                orderType="Market",
-                qty=str(qty),
-            )
-            #print('on swap filled')
-            #print(ordres)
-            if 'orderId' in ordres:
-                self.order_res_to_dlg.emit(f"just create {qty} {symb} position")
-        else: # if spot is filled, 
-            qty = ordinfo['qty']
-
-    def handle_cur_position(self,message):
-        #print(message)
-        #print('handle position')
-        pass
-
-    def handle_cur_wallet(self,message):
-        #print(message)
-        #print('handle wallet')
-        pass
-
     def aggregate_book(self):
         instId = list(self.synthbook.keys())[0] # this tool only care one symbol at a time
         # update aggregate book info back to dialog
@@ -184,21 +144,23 @@ class OrderWorker(QThread):
             curtime = time.time()
             if (curtime - self.lastordertime)<1.5:return
             self.lastordertime = time.time()
-            
+            if len(self.swap_order_id)>0:return
             # check should entry
             if diffperc > self.descrpancy:    
                 # place limit order swap
-                # print(f'try to place limit order {curtime}')
+                px = (float(self.synthbook[instId]['SwAPx']) + float(self.synthbook[instId]['SwBPx']))/2
                 res = self.session.place_order(
                     category="linear",
                     symbol=instId,
                     side="Sell" if self.mode=='entry' else 'Buy',
                     orderType="Limit",
-                    price=self.synthbook[instId]['SwAPx'],
+                    price=px,
                     qty=str(self.min_ord),
                 )
                 if res['retCode'] != 0:
                     print(res['retMsg'])
+                else:
+                    self.swap_order_id = res['result']['orderId']
         else:
             diff = self.synthbook[instId]['SwAPx']-self.synthbook[instId]['bidPx']
             diffperc = diff/self.synthbook[instId]['bidPx']
@@ -215,7 +177,53 @@ class OrderWorker(QThread):
                 pass
         # ( debug )
         #print(self.synthbook)
-                
+         
+    # symbol order size
+    # https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=DOGEUSDT&status=Trading
+    def handle_order_message(self,message):
+        if self.isInterruptionRequested():return
+        if not 'data' in message:return
+        ordinfo = message['data'][-1]
+        isFilled = ordinfo['orderStatus']=='Filled'
+        if not isFilled:return
+        
+        tgt_side = "Sell" if self.mode=='entry' else "Buy"
+        isSideMatch = tgt_side == ordinfo['side']
+        if not isSideMatch:return
+        isLinear = ordinfo['category']=='linear'
+        if isLinear:
+            qty = float(ordinfo['qty'])
+            symb = ordinfo['symbol']
+            #usdNotion = float(self.synthbook[symb]['askPx'])*qty
+            ordres = self.session.place_order(
+                category="spot",
+                symbol=symb,
+                marketUnit='baseCoin',
+                side="Buy" if self.mode=='entry' else "Sell",
+                orderType="Market",
+                qty=str(qty),
+            )
+            if ordres['retCode'] == 0:
+                self.order_res_to_dlg.emit(f"just increased {qty} {symb} position")
+                self.swap_order_id = ''
+            else:
+                print(ordres['retMsg'])
+        else: # if spot is filled, 
+            qty = ordinfo['qty']
+
+    def handle_cur_position(self,message):
+        if not 'data' in message : return
+        for pos in message['data']:
+            if pos['symbol'] != self.symbol:continue
+            if not self.symbol in self.position:
+                self.position[self.symbol] = pos
+    
+    def handle_cur_wallet(self,message):
+        #print(message)
+        #print('handle wallet')
+        pass
+
+       
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
         pass

@@ -35,7 +35,7 @@ class MonitorWorker(QThread):
     # then refresh the UI
     def fetch_account_informations(self):
         # check current 
-        print('time to ask account infomation')
+        #print('time to ask account infomation')
 
         info_swap = self.session.get_instruments_info(
             category="linear",
@@ -52,6 +52,5 @@ class MonitorWorker(QThread):
     def run(self):
         while(True):
             # Sleep for 10 second
-            print("fetch account")
             self.fetch_account_informations()
             self.msleep(10000)
