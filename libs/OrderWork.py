@@ -213,7 +213,6 @@ class OrderWorker(QThread):
             )
             if ordres['retCode'] == 0:
                 self.order_res_to_dlg.emit(f"just increased {qty} {symb} position")
-                self.swap_order_id = ''
             else:
                 print(ordres['retMsg'])
         else: # if spot is filled, 
@@ -240,26 +239,29 @@ class OrderWorker(QThread):
         diff = curswap_sz - curspot_sz
 
         # try to fill up the diff
-        if diff < self.min_ord:return
-        d_side = 'Buy' if diff>0 else 'Sell'
-        d_qty = abs(diff)
-        ordres = self.session.place_order(
-                category="spot",
-                symbol=self.symbol,
-                marketUnit='baseCoin',
-                side=d_side,
-                orderType="Market",
-                qty=str(d_qty),
-            )
-        if ordres['retCode'] == 0:
-            self.order_res_to_dlg.emit(f"try to fill up the difference {diff} amount")
-            print(f'try to fill up the difference')
-        else:
-            print(ordres['retMsg'])
-        
+        if diff >= self.min_ord:
+            d_side = 'Buy' if diff>0 else 'Sell'
+            d_qty = abs(diff)
+            multiplier = math.floor(d_qty/self.min_ord)
+            numord = multiplier*self.min_ord
+            ordres = self.session.place_order(
+                    category="spot",
+                    symbol=self.symbol,
+                    marketUnit='baseCoin',
+                    side=d_side,
+                    orderType="Market",
+                    qty=str(numord),
+                )
+            if ordres['retCode'] == 0:
+                self.order_res_to_dlg.emit(f"try to fill up the difference {diff} amount")
+                # check diff is done, continue to place new order
+                self.swap_order_id = ''
+                print(f'try to fill up the difference')
+            else:
+                print(ordres['retMsg'])
+        else: # check diff is done, continue to place new order
+            self.swap_order_id = ''
             
-            
-
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
         pass
