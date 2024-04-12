@@ -72,7 +72,8 @@ class OrderWorker(QThread):
             trace_logging=False,
         )
         self.ws_private.order_stream(self.handle_order_message)
-        self.ws_private.position_stream(self.handle_cur_position)
+
+        # 推送都不會變動，原因不明
         self.ws_private.wallet_stream(self.handle_cur_wallet)
         
         self.synthbook = {}
@@ -145,6 +146,13 @@ class OrderWorker(QThread):
             if (curtime - self.lastordertime)<1.5:return
             self.lastordertime = time.time()
             if len(self.swap_order_id)>0:return
+
+            # qty filter
+            curswap_sz = float(self.position[self.symbol]['size']) if self.symbol in self.position else 0
+            if curswap_sz>=self.targetsz:return
+
+            # MM filter
+
             # check should entry
             if diffperc > self.descrpancy:    
                 # place limit order swap
@@ -211,19 +219,47 @@ class OrderWorker(QThread):
         else: # if spot is filled, 
             qty = ordinfo['qty']
 
-    def handle_cur_position(self,message):
-        if not 'data' in message : return
-        for pos in message['data']:
-            if pos['symbol'] != self.symbol:continue
-            if not self.symbol in self.position:
-                self.position[self.symbol] = pos
-    
+    # update position & holdings on callback
     def handle_cur_wallet(self,message):
-        #print(message)
-        #print('handle wallet')
-        pass
+        if not 'data' in message : return
 
-       
+        wallet_res = self.session.get_wallet_balance(accountType="UNIFIED")
+        for asset in wallet_res['result']['list'][-1]['coin']:
+            symbol = f'{asset["coin"]}USDT'
+            if symbol!=self.symbol:continue
+            self.asset_info[symbol] = asset
+
+        position_res = self.session.get_positions(category="linear", symbol=self.symbol)
+        for pos in position_res['result']['list']:
+            symbol = pos['symbol']
+            if symbol != self.symbol:continue
+            self.position[symbol] = pos
+        
+        curswap_sz = float(self.position[self.symbol]['size']) if self.symbol in self.position else 0
+        curspot_sz = float(self.asset_info[self.symbol]['equity']) if self.symbol in self.asset_info else 0
+        diff = curswap_sz - curspot_sz
+
+        # try to fill up the diff
+        if diff < self.min_ord:return
+        d_side = 'Buy' if diff>0 else 'Sell'
+        d_qty = abs(diff)
+        ordres = self.session.place_order(
+                category="spot",
+                symbol=self.symbol,
+                marketUnit='baseCoin',
+                side=d_side,
+                orderType="Market",
+                qty=str(d_qty),
+            )
+        if ordres['retCode'] == 0:
+            self.order_res_to_dlg.emit(f"try to fill up the difference {diff} amount")
+            print(f'try to fill up the difference')
+        else:
+            print(ordres['retMsg'])
+        
+            
+            
+
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
         pass
