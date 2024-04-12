@@ -46,7 +46,7 @@ class MonitorWorker(QThread):
         # send account info to Order Worker
         self.account_info_signal.emit(f"position:here")
         # send account info to UI
-        self.account_info_to_dlg.emit(f"position:here")
+        # self.account_info_to_dlg.emit(f"position:here")
         pass
 
     def run(self):

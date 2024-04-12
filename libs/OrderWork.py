@@ -213,6 +213,7 @@ class OrderWorker(QThread):
             )
             if ordres['retCode'] == 0:
                 self.order_res_to_dlg.emit(f"just increased {qty} {symb} position")
+                self.swap_order_id = ''
             else:
                 print(ordres['retMsg'])
         else: # if spot is filled, 
@@ -221,6 +222,10 @@ class OrderWorker(QThread):
     # update position & holdings on callback
     def handle_cur_wallet(self,message):
         if not 'data' in message : return
+
+    # receive account info from monitor worker class
+    def on_account_info_msg(self,msg):
+        print(f'on receive {msg} from monitor')
 
         wallet_res = self.session.get_wallet_balance(accountType="UNIFIED")
         for asset in wallet_res['result']['list'][-1]['coin']:
@@ -237,11 +242,10 @@ class OrderWorker(QThread):
         curswap_sz = float(self.position[self.symbol]['size']) if self.symbol in self.position else 0
         curspot_sz = float(self.asset_info[self.symbol]['equity']) if self.symbol in self.asset_info else 0
         diff = curswap_sz - curspot_sz
-
+        d_qty = abs(diff)
         # try to fill up the diff
-        if diff >= self.min_ord:
+        if d_qty >= self.min_ord:
             d_side = 'Buy' if diff>0 else 'Sell'
-            d_qty = abs(diff)
             multiplier = math.floor(d_qty/self.min_ord)
             numord = multiplier*self.min_ord
             ordres = self.session.place_order(
@@ -255,17 +259,10 @@ class OrderWorker(QThread):
             if ordres['retCode'] == 0:
                 self.order_res_to_dlg.emit(f"try to fill up the difference {diff} amount")
                 # check diff is done, continue to place new order
-                self.swap_order_id = ''
                 print(f'try to fill up the difference')
             else:
                 print(ordres['retMsg'])
-        else: # check diff is done, continue to place new order
-            self.swap_order_id = ''
             
-    # receive account info from monitor worker class
-    def on_account_info_msg(self,msg):
-        pass
-        #print(f'on receive {msg} from monitor')
 
     def run(self):
         while True:
