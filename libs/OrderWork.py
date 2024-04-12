@@ -1,6 +1,7 @@
 import math
 import json
 import time
+from datetime import datetime
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import WebSocket
@@ -17,7 +18,8 @@ class OrderWorker(QThread):
                  symbol='DOGEUSDT',
                  descrpancy=0.001,
                  mode=0,
-                 targetsz=0
+                 targetsz=0,
+                 mlotplier=2
                  ):
         super().__init__()
         self.apikey = apikey
@@ -26,6 +28,7 @@ class OrderWorker(QThread):
         self.descrpancy = descrpancy
         self.mode='entry' if mode==0 else 'exit'
         self.targetsz = targetsz
+        self.mlotplier = max(1,mlotplier) 
 
         # inner infomation
         self.swap_order_id = ''
@@ -52,7 +55,7 @@ class OrderWorker(QThread):
         min_sz = max(min_ord_swap,min_spot_amt)
         ord_step = float(info_swap['result']['list'][0]['lotSizeFilter']['qtyStep'])
         multiplier = math.ceil(min_sz/ord_step)
-        self.min_ord = multiplier * ord_step
+        self.min_ord = multiplier * ord_step * self.mlotplier
 
         self.priceScale = float(info_swap['result']['list'][0]['priceScale'])
         self.lastordertime = time.time()
@@ -212,8 +215,9 @@ class OrderWorker(QThread):
                 qty=str(qty),
             )
             if ordres['retCode'] == 0:
-                self.order_res_to_dlg.emit(f"just increased {qty} {symb} position")
                 self.swap_order_id = ''
+                dtstr = datetime.today().strftime('%m-%d %H:%M:%S')
+                self.order_res_to_dlg.emit(f"{dtstr} just increase {qty} {symb} position.")
             else:
                 print(ordres['retMsg'])
         else: # if spot is filled, 
@@ -226,7 +230,7 @@ class OrderWorker(QThread):
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
         print(f'on receive {msg} from monitor')
-
+        #self.swap_order_id = ''
         wallet_res = self.session.get_wallet_balance(accountType="UNIFIED")
         for asset in wallet_res['result']['list'][-1]['coin']:
             symbol = f'{asset["coin"]}USDT'
@@ -257,7 +261,8 @@ class OrderWorker(QThread):
                     qty=str(numord),
                 )
             if ordres['retCode'] == 0:
-                self.order_res_to_dlg.emit(f"try to fill up the difference {diff} amount")
+                dtstr = datetime.today().strftime('%m-%d %H:%M:%S')
+                self.order_res_to_dlg.emit(f"{dtstr} try to fill up the difference {diff} amount")
                 # check diff is done, continue to place new order
                 print(f'try to fill up the difference')
             else:

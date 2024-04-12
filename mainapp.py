@@ -170,6 +170,10 @@ class MyDialog(QDialog):
         self.mmrate_input.setPlaceholderText("30")
         self.mmrate_input.setText(settings.value("mmrate", ""))
 
+        label_a1 = QLabel("Num Lot Multiplier")
+        self.mlot_input = QLineEdit()
+        self.mlot_input.setPlaceholderText("30")
+        self.mlot_input.setText(settings.value("mlot", "2"))
 
         # Add labels and text input fields to groupbox layout
         groupBoxLayout.addWidget(label1)
@@ -178,6 +182,8 @@ class MyDialog(QDialog):
         groupBoxLayout.addWidget(self.api_secret_input)
         groupBoxLayout.addWidget(label3)
         groupBoxLayout.addWidget(self.symbol_input)
+        groupBoxLayout.addWidget(label_a1)
+        groupBoxLayout.addWidget(self.mlot_input)
         groupBoxLayout.addWidget(label4)
         groupBoxLayout.addWidget(self.mmrate_input)
 
@@ -275,8 +281,9 @@ class MyDialog(QDialog):
                 descrpancy = float(self.entry_dif.text()) if mode==0 else float(self.exit_dif.text())
                 descrpancy *= 0.01
                 tgtsz = float(self.tgt_amt_entry.text()) if mode==0 else float(self.tgt_amt_exit.text())
+                mlotplier = float(self.mlot_input.text())
                 self.logs_textedit.clear()
-                self.order_worker = OrderWorker(apikey,secretkey,symbol,descrpancy,mode,tgtsz)
+                self.order_worker = OrderWorker(apikey,secretkey,symbol,descrpancy,mode,tgtsz,mlotplier)
                 self.order_worker.order_res_to_dlg.connect(self.update_order_log)
                 self.order_worker.aggregate_book_to_dlg.connect(self.on_aggregate_book)
                 self.order_worker.start()
@@ -329,6 +336,7 @@ class MyDialog(QDialog):
         settings.setValue("exitdif", self.exit_dif.text())
         settings.setValue("tgtentrysz", self.tgt_amt_entry.text())
         settings.setValue("tgtexitsz", self.tgt_amt_exit.text())
+        settings.setValue("mlot", self.mlot_input.text())
         super().closeEvent(event)
 
 if __name__ == "__main__":
