@@ -17,12 +17,13 @@ class TableWidget(QTableWidget):
             ["LTC", "300", "310", "3000", "1.7", "100", "5", "9%", "2024-04-03 12:00:00"],
             ["ADA", "1.2", "1.25", "10", "1.9", "1", "0.1", "15%", "2024-04-03 12:00:00"]
         ]
-
-        for i, row in enumerate(symb_data):
-            for j, value in enumerate(row):
-                item = QTableWidgetItem(value)
-                self.setItem(i, j, item)
-
         self.resizeColumnsToContents()
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.verticalHeader().setVisible(False)  # Hide the vertical header
+
+    def update_table_data(self, data):
+        self.setRowCount(len(data))
+        for i, row in enumerate(data):
+            for j, value in enumerate(row):
+                item = QTableWidgetItem(value)
+                self.setItem(i, j, item)
