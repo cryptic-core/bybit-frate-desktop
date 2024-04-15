@@ -35,6 +35,7 @@ class OrderWorker(QThread):
         self.asset_info = {}
         self.position = {}
         self.spotholding = {}
+        self.margin_rate = 0
 
         bTestnet = False
         self.session = HTTP(
@@ -155,6 +156,7 @@ class OrderWorker(QThread):
             if curswap_sz>=self.targetsz:return
 
             # MM filter
+            if(self.margin_rate >= 95):return
 
             # check should entry
             if diffperc > self.descrpancy:    
@@ -229,7 +231,33 @@ class OrderWorker(QThread):
 
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
+
         print(f'on receive {msg} from monitor')
+        info_wallet = self.session.get_wallet_balance(accountType="UNIFIED") # account margin
+        accountIMRate = float(info_wallet['result']['list'][-1]['accountIMRate'])*100
+        accountMMRate = float(info_wallet['result']['list'][-1]['accountMMRate'])*100
+        # update margin rate
+        self.margin_rate = accountIMRate + accountMMRate
+        avilBalance = float(info_wallet['result']['list'][-1]['totalAvailableBalance'])
+        USDLoan = 0
+        for coin in info_wallet['result']['list'][-1]['coin']:
+            if coin['coin']=='USDT':
+                USDLoan = float(coin['borrowAmount'])
+        current_leverage = (USDLoan/avilBalance)+1
+
+        # historical funding history
+        frate_hist = self.session.get_funding_rate_history(
+            category="linear",
+            symbol=self.symbol
+        )
+        most_recent_frate_apy = frate_hist['result']['list'][-1]
+        
+        # send update mm_rate & im_rate to dialog
+        msg_body = {"frate_apy_8H":most_recent_frate_apy,"imrate":accountIMRate,"mmrate":accountIMRate}
+        msg = f'orderworkmsg#{json.dumps(msg_body)}'
+        self.order_res_to_dlg.emit(msg)
+
+
         #self.swap_order_id = ''
         wallet_res = self.session.get_wallet_balance(accountType="UNIFIED")
         for asset in wallet_res['result']['list'][-1]['coin']:

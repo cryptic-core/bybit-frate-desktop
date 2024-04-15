@@ -320,10 +320,22 @@ class MyDialog(QDialog):
         
 
     def update_log(self, message):
-        self.logs_textedit.append(message)
+        if '#' in message: # is json message
+            pass
+        else:
+            self.logs_textedit.append(message)
     
     def update_order_log(self, message):
-        self.logs_textedit.append(message)
+        if '#' in message: # is json message
+            msg_json = message.split('#')[1]
+            most_recent_frate_apy = msg_json['frate_apy_8H']
+            imrate = msg_json['imrate']
+            mmrate = msg_json['mmrate']
+            self.lbb_im_rate.setText(f"IM Rate: {imrate}%")
+            self.lbb_mm_rate.setText(f"MM Rate: {mmrate}%")
+            self.lbb_apy_8h.setText(f"APY 8H:       {most_recent_frate_apy}%")
+        else:
+            self.logs_textedit.append(message)
 
     def closeEvent(self, event):
         # Save the last input values when the dialog is closed
