@@ -234,10 +234,13 @@ class OrderWorker(QThread):
 
         print(f'on receive {msg} from monitor')
         info_wallet = self.session.get_wallet_balance(accountType="UNIFIED") # account margin
-        accountIMRate = float(info_wallet['result']['list'][-1]['accountIMRate'])*100
-        accountMMRate = float(info_wallet['result']['list'][-1]['accountMMRate'])*100
+        accountBalance ="{:.2f}".format( float(info_wallet['result']['list'][-1]['totalEquity']) )
+        imrate_f = float(info_wallet['result']['list'][-1]['accountIMRate'])*100
+        mmrate_f = float(info_wallet['result']['list'][-1]['accountMMRate'])*100
+        accountIMRate = "{:.2f}".format( imrate_f )
+        accountMMRate = "{:.2f}".format( mmrate_f )
         # update margin rate
-        self.margin_rate = accountIMRate + accountMMRate
+        self.margin_rate = imrate_f + mmrate_f
         avilBalance = float(info_wallet['result']['list'][-1]['totalAvailableBalance'])
         USDLoan = 0
         for coin in info_wallet['result']['list'][-1]['coin']:
@@ -250,10 +253,10 @@ class OrderWorker(QThread):
             category="linear",
             symbol=self.symbol
         )
-        most_recent_frate_apy = frate_hist['result']['list'][-1]
+        most_recent_frate_apy ="{:.2f}".format( float(frate_hist['result']['list'][-1]['fundingRate'])*3*365*100 )
         
         # send update mm_rate & im_rate to dialog
-        msg_body = {"frate_apy_8H":most_recent_frate_apy,"imrate":accountIMRate,"mmrate":accountIMRate}
+        msg_body = {"accountBalance":accountBalance,"frate_apy_8H":most_recent_frate_apy,"imrate":accountIMRate,"mmrate":accountMMRate}
         msg = f'orderworkmsg#{json.dumps(msg_body)}'
         self.order_res_to_dlg.emit(msg)
 

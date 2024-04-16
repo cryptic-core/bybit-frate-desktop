@@ -320,17 +320,24 @@ class MyDialog(QDialog):
         
 
     def update_log(self, message):
-        if '#' in message: # is json message
+        if '#' in message: # is imrate message
+            borrwo_rate_obj = json.loads( message.split('#')[1] )
+            self.lbb_lendrate_8h.setText(f"Lending rate 8hr:   {borrwo_rate_obj['yearly_borrowRate']}")
+            self.lbb_real_income_8h.setText(f"Real Income 8H:       ${borrwo_rate_obj['recent8HIncome']} usd")    
+        elif '$' in message: # is position info message
+            position_info_list = list( json.loads(message.split('$')[1]) )
             pass
         else:
             self.logs_textedit.append(message)
     
     def update_order_log(self, message):
         if '#' in message: # is json message
-            msg_json = message.split('#')[1]
+            msg_json = json.loads( message.split('#')[1] )
             most_recent_frate_apy = msg_json['frate_apy_8H']
             imrate = msg_json['imrate']
             mmrate = msg_json['mmrate']
+            accountBalance = msg_json['accountBalance']
+            self.lbb_acc_balance.setText(f"Account Balance: {accountBalance}")
             self.lbb_im_rate.setText(f"IM Rate: {imrate}%")
             self.lbb_mm_rate.setText(f"MM Rate: {mmrate}%")
             self.lbb_apy_8h.setText(f"APY 8H:       {most_recent_frate_apy}%")

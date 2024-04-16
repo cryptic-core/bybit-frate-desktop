@@ -27,6 +27,7 @@ class MonitorWorker(QThread):
         )
         self.positionlist = {}
         self.account_info = {}
+        self.recent8HIncome = 0
         self.calc_total_income()
 
     # receive message dynamically from dialog
@@ -79,6 +80,7 @@ class MonitorWorker(QThread):
         all_funding_tx = []
         all_interest_tx = []
         end_time = int(time.time()*1000)
+
         while True:
             fundinglog_res = self.session.get_transaction_log(
                 accountType="UNIFIED",
@@ -87,25 +89,38 @@ class MonitorWorker(QThread):
                 endTime=end_time
             )
             if len(fundinglog_res['result']['list'])<1:break
+            most_recent_8H_ts = fundinglog_res['result']['list'][0]["transactionTime"]
             for tx in fundinglog_res['result']['list']:
                 all_funding_accumulated += float(tx['funding'])
                 all_funding_tx.append(tx)
+                if tx['transactionTime']==most_recent_8H_ts:
+                    self.recent8HIncome += float(tx['funding'])
             end_time = int(fundinglog_res['result']['list'][-1]['transactionTime'])-3000
         
-        print(all_funding_accumulated)
+        # reset end time
+        end_time = int(time.time()*1000)
         while True:
             interest_hist = self.session.get_transaction_log(
                 accountType="UNIFIED",
                 category='spot',
-                type="INTEREST"
+                type="INTEREST",
+                endTime=end_time
             )
             if len(interest_hist['result']['list'])<1:break
-            for tx in fundinglog_res['result']['list']:
-                all_interest_accumulated += float(tx['funding'])
+            for tx in interest_hist['result']['list']:
+                all_interest_accumulated += float(tx['cashFlow'])
                 all_interest_tx.append(tx)
+                
             end_time = int(interest_hist['result']['list'][-1]['transactionTime'])-3000
-        print(all_interest_tx)
         
+        for symbol in list(self.positionlist):
+            filtered_symb_data = [entry for entry in all_funding_tx if entry["symbol"]==symbol]
+            funding_symb_accu = "{:.2f}".format( sum(float(tx["funding"]) for tx in filtered_symb_data) )
+            self.positionlist[symbol]["Total Income"] = funding_symb_accu
+            if len(filtered_symb_data)>0:
+                self.positionlist[symbol]["8H Income"] = "{:.2f}".format(float(filtered_symb_data[0]['funding']))
+        
+
     # every 5 seconds, check spot holdings and position
     # then refresh the UI
     def fetch_account_info(self):
@@ -114,20 +129,31 @@ class MonitorWorker(QThread):
 
         info_interestRate = self.session.spot_margin_trade_get_vip_margin_data(currency="USDT",vipLevel="No VIP")
         houly_borrowRate = float(info_interestRate['result']['vipCoinList'][-1]['list'][0]['hourlyBorrowRate']) * 100
-        yearly_borrowRate = houly_borrowRate * 24 * 365
-        print("{:.2f}%".format(yearly_borrowRate))
+        houly_borrowRate_str = "{:.4f}%".format(houly_borrowRate)
+        daily_borrowRate = houly_borrowRate * 24
+        daily_borrowRate_str = "{:.2f}%".format(daily_borrowRate)
+        yearly_borrowRate = "{:.2f}%".format(houly_borrowRate * 24 * 365)
+        
         
         # send update mm_rate & im_rate to dialog
-        msg_body = {"houly_borrowRate":houly_borrowRate,"yearly_borrowRate":yearly_borrowRate}
-        msg = f'monitorworkmsg#{json.dumps(msg_body)}'
+        msg_body = {
+                    "houly_borrowRate":houly_borrowRate_str,
+                    "daily_borrowRate":daily_borrowRate_str,
+                    "yearly_borrowRate":yearly_borrowRate,
+                    "recent8HIncome":"{:.2f}".format(self.recent8HIncome)
+                }
+        msg = f'borrowrate#{json.dumps(msg_body)}'
         self.account_info_to_dlg.emit(msg)
         
+        # send position info to dialog
+        msg = f'position_info${json.dumps(self.positionlist)}'
+        self.account_info_to_dlg.emit(msg)
+
         # send account info to Order Worker
-        self.account_info_signal.emit(f"position:here")
+        self.account_info_signal.emit(f"from monitor")
         
     def run(self):
         while(True):
             # Sleep for 10 second
-            
             self.fetch_account_info()
             self.msleep(10000)
