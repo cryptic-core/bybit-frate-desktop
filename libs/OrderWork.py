@@ -57,9 +57,9 @@ class OrderWorker(QThread):
         min_spot_amt = float(info_spot['result']['list'][0]['lotSizeFilter']['minOrderQty'])
         min_ord_swap = float(info_swap['result']['list'][0]['lotSizeFilter']['minOrderQty'])
         min_sz = max(min_ord_swap,min_spot_amt)
-        ord_step = float(info_swap['result']['list'][0]['lotSizeFilter']['qtyStep'])
-        multiplier = math.ceil(min_sz/ord_step)
-        self.min_ord = multiplier * ord_step * self.mlotplier
+        self.ord_step = float(info_swap['result']['list'][0]['lotSizeFilter']['qtyStep'])
+        multiplier = math.ceil(min_sz/self.ord_step)
+        self.min_ord = multiplier * self.ord_step * self.mlotplier
 
         self.priceScale = float(info_swap['result']['list'][0]['priceScale'])
         self.lastordertime = time.time()
@@ -208,7 +208,7 @@ class OrderWorker(QThread):
             # check should exit
             if diffperc < (-1*self.descrpancy):
                 # place limit order swap
-                px = float(self.synthbook[instId]['SwBPx'])
+                px = (float(self.synthbook[instId]['SwAPx']) + float(self.synthbook[instId]['SwBPx']))/2
                 res = self.session.place_order(
                     category="linear",
                     symbol=instId,
@@ -242,7 +242,8 @@ class OrderWorker(QThread):
             #usdNotion = float(self.synthbook[symb]['askPx'])*qty
             Side = "Buy" if self.mode=='entry' else "Sell"
             if Side=='Sell' and self.currcoin_amt<qty:
-                qty = self.currcoin_amt
+                multiplier = int(self.currcoin_amt/self.ord_step)
+                qty = multiplier*self.ord_step
             
             ordres = self.session.place_order(
                 category="spot",
@@ -257,6 +258,12 @@ class OrderWorker(QThread):
                 dtstr = datetime.today().strftime('%m-%d %H:%M:%S')
                 side = 'increase' if self.mode=='entry' else 'decrease'
                 self.order_res_to_dlg.emit(f"{dtstr} just {side} {qty} {symb} position.")
+
+                # update current amount immediately
+                info_wallet = self.session.get_wallet_balance(accountType="UNIFIED") # account margin
+                c_list = info_wallet['result']['list'][-1]['coin']
+                currcoin = [coin for coin in c_list if coin['coin']==self.symbol[:-4]]
+                self.currcoin_amt = float(currcoin[-1]['walletBalance']) if len(currcoin)>0 else 0
             else:
                 print(ordres['retMsg'])
         else: # if spot is filled, 

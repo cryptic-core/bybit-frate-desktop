@@ -67,7 +67,7 @@ class MonitorWorker(QThread):
                     "Ratio%": ratio,
                     "Total Income":0,
                     "8H Income":0, 
-                    "Next Fund. APY":f'{frate_runtime}%',
+                    "Next Fund. APY":f'{frate_runtime}',
                     "Next Fund. Time":nextFundingTime
                 }
             else:
@@ -75,7 +75,7 @@ class MonitorWorker(QThread):
                 self.positionlist[symbol]['PERP'] = pos['size']
                 self.positionlist[symbol]["USD Value"] = "{:.2f}".format(float(pos['positionValue']))
                 self.positionlist[symbol]["Ratio%"] = ratio
-                self.positionlist[symbol]["Next Fund. APY"] = f'{frate_runtime}%'
+                self.positionlist[symbol]["Next Fund. APY"] = f'{frate_runtime}'
                 self.positionlist[symbol]["Next Fund. Time"] = nextFundingTime
 
     async def calc_total_income(self):
