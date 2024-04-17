@@ -1,7 +1,7 @@
 import time
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
 from pybit.unified_trading import HTTP
@@ -48,8 +48,15 @@ class MonitorWorker(QThread):
         for pos in position_res['result']['list']: 
             symbol = pos['symbol']
             tick_res = self.session.get_tickers(category='linear',symbol=symbol)
-            frate_runtime = float(tick_res['result']['list'][-1]['fundingRate'])*100*3*365
-            nextFundingTime = datetime.utcfromtimestamp(float(tick_res['result']['list'][-1]['nextFundingTime'])/1000).strftime('%y/%m/%d %H:%M')
+            frate_runtime = "{:.2f}%".format( float(tick_res['result']['list'][-1]['fundingRate'])*100*3*365 )
+            
+            # convert next fund time ts to UTC+8
+            utc_datetime = datetime.utcfromtimestamp(float(tick_res['result']['list'][-1]['nextFundingTime'])/1000)
+            utc_offset = timedelta(hours=8)
+            utc_plus_eight = timezone(utc_offset)
+            utc_plus_eight_datetime = utc_datetime.replace(tzinfo=timezone.utc).astimezone(utc_plus_eight)
+            nextFundingTime = utc_plus_eight_datetime.strftime('%y/%m/%d %H:%M')
+
             ratio = "{:.2f}%".format(float(pos['positionValue'])/usd_value_total*100)
             if not symbol in self.positionlist:
                 self.positionlist[symbol] = {

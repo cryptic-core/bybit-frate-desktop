@@ -337,8 +337,22 @@ class MyDialog(QDialog):
             self.lbb_lendrate_8h.setText(f"Lending rate 8hr:   {borrwo_rate_obj['yearly_borrowRate']}")
             self.lbb_real_income_8h.setText(f"Real Income 8H:       ${borrwo_rate_obj['recent8HIncome']} usd")    
         elif '$' in message: # is position info message
-            position_info_list = list( json.loads(message.split('$')[1]) )
-            pass
+            position_info = json.loads(message.split('$')[1])
+            position_info_list = list(position_info)
+            tdata = []
+            for symb in position_info_list:
+                pos = position_info[symb]
+                symbol = pos['Symb']
+                spotsz = pos['SPOT']
+                perpsz = pos['PERP']
+                usdval = pos["USD Value"]
+                ratio = pos['Ratio%']
+                totalincome = pos['Total Income']
+                H8income = pos['8H Income']
+                nextAPY = pos['Next Fund. APY']
+                nextFTime = pos['Next Fund. Time']
+                tdata.append([symbol,spotsz,perpsz,usdval,ratio,totalincome,H8income,nextAPY,nextFTime])
+            self.table_widget.update_table_data(tdata)
         else:
             self.logs_textedit.append(message)
     
@@ -353,6 +367,7 @@ class MyDialog(QDialog):
             self.lbb_im_rate.setText(f"IM Rate: {imrate}%")
             self.lbb_mm_rate.setText(f"MM Rate: {mmrate}%")
             self.lbb_apy_8h.setText(f"APY 8H:       {most_recent_frate_apy}%")
+
         else:
             self.logs_textedit.append(message)
 
