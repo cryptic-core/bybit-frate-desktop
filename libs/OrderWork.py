@@ -182,22 +182,44 @@ class OrderWorker(QThread):
                     print(res['retMsg'])
                 else:
                     self.swap_order_id = res['result']['orderId']
-        else:
-            diff = self.synthbook[instId]['SwAPx']-self.synthbook[instId]['bidPx']
-            diffperc = diff/self.synthbook[instId]['bidPx']
+        else: # exit 
+            diff = self.synthbook[instId]['bidPx']-self.synthbook[instId]['SwAPx']
+            diffperc = diff/self.synthbook[instId]['bidPx']  
             aggregate_book['spot'] = self.synthbook[instId]['bidPx']
             aggregate_book['swap'] = self.synthbook[instId]['SwAPx']
             aggregate_book['perc'] = "{:.2f}".format(diffperc * 100)
             # send curr price info back to dlg
             self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
 
+            # toggle filter
+            if not self.start_entry:return
+
+            # time filter
             curtime = time.time()
-            if (curtime - self.lastordertime)<1000:return
+            if (curtime - self.lastordertime)<1.5:return
+            self.lastordertime = time.time()
+            if len(self.swap_order_id)>0:return
+
+            # qty filter
+            curswap_sz = float(self.position[self.symbol]['size']) if self.symbol in self.position else 0
+            if curswap_sz<=self.targetsz:return
+
             # check should exit
-            if diffperc < self.descrpancy:
-                pass
-        # ( debug )
-        #print(self.synthbook)
+            if diffperc > self.descrpancy:    
+                # place limit order swap
+                px = (float(self.synthbook[instId]['SwAPx']) + float(self.synthbook[instId]['SwBPx']))/2
+                res = self.session.place_order(
+                    category="linear",
+                    symbol=instId,
+                    side="Sell" if self.mode=='entry' else 'Buy',
+                    orderType="Limit",
+                    price=px,
+                    qty=str(self.min_ord),
+                )
+                if res['retCode'] != 0:
+                    print(res['retMsg'])
+                else:
+                    self.swap_order_id = res['result']['orderId']
          
     # symbol order size
     # https://api.bybit.com/v5/market/instruments-info?category=spot&symbol=DOGEUSDT&status=Trading
