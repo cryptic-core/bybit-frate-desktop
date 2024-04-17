@@ -262,23 +262,25 @@ class MyDialog(QDialog):
         settings = QSettings("config.ini", QSettings.IniFormat)
         mode = int(settings.value("entrymode",0))
         curmode = "Entry" if mode==0 else "Exit"
+
+        content = {}
+        content["mode"] = mode
+        content["apikey"] = self.api_key_input.text()
+        content["apisecret"] = self.api_secret_input.text()
+        content["symbol"] = self.symbol_input.text()
+        content["mmrate"] = self.mmrate_input.text()
+        content["mlotplier"] = self.mlot_input.text()
+        content["descrpancy"] = self.entry_dif.text()
+        content["targetsz"] = self.tgt_amt_entry.text()
+
         if current_text == f"Start {curmode}":
-            content = {}
             content["toggle"] = True
-            content["mode"] = mode
-            content["apikey"] = self.api_key_input.text()
-            content["apisecret"] = self.api_secret_input.text()
-            content["symbol"] = self.symbol_input.text()
-            content["mmrate"] = self.mmrate_input.text()
-            content["mlotplier"] = self.mlot_input.text()
-            content["descrpancy"] = self.entry_dif.text()
-            content["targetsz"] = self.tgt_amt_entry.text()
             self.order_worker.trigger_from_dlg.emit(json.dumps(content))
             self.start_button.setText("Stop")
         else:
-            content = {}
             content["toggle"] = False
-            self.order_worker.trigger_from_dlg.emit(False)
+            content["mode"] = mode
+            self.order_worker.trigger_from_dlg.emit(json.dumps(content))
             self.start_button.setText(f"Start {curmode}")
             
 

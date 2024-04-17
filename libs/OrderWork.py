@@ -62,16 +62,19 @@ class OrderWorker(QThread):
 
         self.priceScale = float(info_swap['result']['list'][0]['priceScale'])
         self.lastordertime = time.time()
+        self.init_ws(apikey,secretkey)
+
+    def init_ws(self,apikey,secretkey):
         self.wsspot = WebSocket(
-            testnet=bTestnet,
+            testnet=False,
             channel_type="spot",
         )
         self.wsperp = WebSocket(
-            testnet=bTestnet,
+            testnet=False,
             channel_type="linear",
         )
         self.ws_private = WebSocket(
-            testnet=bTestnet,
+            testnet=False,
             channel_type="private",
             api_key=apikey,
             api_secret=secretkey,
@@ -238,12 +241,18 @@ class OrderWorker(QThread):
     def on_trigger_from_dlg(self, contex):
         content = json.loads(contex)
         self.start_entry = content["toggle"]
-        self.mode = content["mode"]
+        self.mode == 'entry' if content["mode"]==0 else 'exit'
         self.apikey = content['apikey']
+        self.symbol = content['symbol']
         self.secretkey = content['apisecret']
         self.margin_rate = float(content['mmrate'])
         self.mlotplier = float(content['mlotplier'])
         self.targetsz = float(content['targetsz'])
+
+        # restart ws
+        self.wsspot.exit()
+        self.wsperp.exit()
+        self.init_ws(self.apikey,self.secretkey)
     
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
