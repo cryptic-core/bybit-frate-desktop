@@ -241,9 +241,9 @@ class OrderWorker(QThread):
         self.mode = content["mode"]
         self.apikey = content['apikey']
         self.secretkey = content['apisecret']
-        self.margin_rate = content['mmrate']
-        self.mlotplier = content['mlotplier']
-        self.targetsz = content['targetsz']
+        self.margin_rate = float(content['mmrate'])
+        self.mlotplier = float(content['mlotplier'])
+        self.targetsz = float(content['targetsz'])
     
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
@@ -269,7 +269,7 @@ class OrderWorker(QThread):
             category="linear",
             symbol=self.symbol
         )
-        most_recent_frate_apy ="{:.2f}".format( float(frate_hist['result']['list'][-1]['fundingRate'])*3*365*100 )
+        most_recent_frate_apy ="{:.2f}".format( float(frate_hist['result']['list'][0]['fundingRate'])*3*365*100 )
         
         # send update mm_rate & im_rate to dialog
         msg_body = {"accountBalance":accountBalance,"frate_apy_8H":most_recent_frate_apy,"imrate":accountIMRate,"mmrate":accountMMRate}
