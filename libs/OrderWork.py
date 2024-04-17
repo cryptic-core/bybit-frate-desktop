@@ -38,6 +38,7 @@ class OrderWorker(QThread):
         self.position = {}
         self.spotholding = {}
         self.margin_rate = 95
+        self.currcoin_amt = 0
 
         bTestnet = False
         self.session = HTTP(
@@ -183,7 +184,7 @@ class OrderWorker(QThread):
                 else:
                     self.swap_order_id = res['result']['orderId']
         else: # exit 
-            diff = self.synthbook[instId]['bidPx']-self.synthbook[instId]['SwAPx']
+            diff = self.synthbook[instId]['SwAPx']-self.synthbook[instId]['bidPx']
             diffperc = diff/self.synthbook[instId]['bidPx']  
             aggregate_book['spot'] = self.synthbook[instId]['bidPx']
             aggregate_book['swap'] = self.synthbook[instId]['SwAPx']
@@ -205,15 +206,16 @@ class OrderWorker(QThread):
             if curswap_sz<=self.targetsz:return
 
             # check should exit
-            if diffperc > self.descrpancy:    
+            if diffperc < (-1*self.descrpancy):
                 # place limit order swap
-                px = (float(self.synthbook[instId]['SwAPx']) + float(self.synthbook[instId]['SwBPx']))/2
+                px = float(self.synthbook[instId]['SwBPx'])
                 res = self.session.place_order(
                     category="linear",
                     symbol=instId,
                     side="Sell" if self.mode=='entry' else 'Buy',
                     orderType="Limit",
                     price=px,
+                    reduceOnly=True,
                     qty=str(self.min_ord),
                 )
                 if res['retCode'] != 0:
@@ -238,18 +240,23 @@ class OrderWorker(QThread):
             qty = float(ordinfo['qty'])
             symb = ordinfo['symbol']
             #usdNotion = float(self.synthbook[symb]['askPx'])*qty
+            Side = "Buy" if self.mode=='entry' else "Sell"
+            if Side=='Sell' and self.currcoin_amt<qty:
+                qty = self.currcoin_amt
+            
             ordres = self.session.place_order(
                 category="spot",
                 symbol=symb,
                 marketUnit='baseCoin',
-                side="Buy" if self.mode=='entry' else "Sell",
+                side=Side,
                 orderType="Market",
                 qty=str(qty),
             )
             if ordres['retCode'] == 0:
                 self.swap_order_id = ''
                 dtstr = datetime.today().strftime('%m-%d %H:%M:%S')
-                self.order_res_to_dlg.emit(f"{dtstr} just increase {qty} {symb} position.")
+                side = 'increase' if self.mode=='entry' else 'decrease'
+                self.order_res_to_dlg.emit(f"{dtstr} just {side} {qty} {symb} position.")
             else:
                 print(ordres['retMsg'])
         else: # if spot is filled, 
@@ -269,6 +276,7 @@ class OrderWorker(QThread):
         self.secretkey = content['apisecret']
         self.margin_rate = float(content['mmrate'])
         self.mlotplier = float(content['mlotplier'])
+        self.descrpancy = float(content['descrpancy'])/100
         self.targetsz = float(content['targetsz'])
 
         # restart ws
@@ -277,9 +285,9 @@ class OrderWorker(QThread):
         self.init_ws(self.apikey,self.secretkey)
     
     # receive account info from monitor worker class
-    def on_account_info_msg(self,msg):
+    def on_account_info_msg(self,data):
 
-        # print(f'on receive {msg} from monitor')
+        # print(f'on receive {data} from monitor')
         info_wallet = self.session.get_wallet_balance(accountType="UNIFIED") # account margin
         accountBalance ="{:.2f}".format( float(info_wallet['result']['list'][-1]['totalEquity']) )
         imrate_f = float(info_wallet['result']['list'][-1]['accountIMRate'])*100
@@ -289,6 +297,9 @@ class OrderWorker(QThread):
         # update margin rate
         self.margin_rate = imrate_f + mmrate_f
         avilBalance = float(info_wallet['result']['list'][-1]['totalAvailableBalance'])
+        c_list = info_wallet['result']['list'][-1]['coin']
+        currcoin = [coin for coin in c_list if coin['coin']==self.symbol[:-4]]
+        self.currcoin_amt = float(currcoin[-1]['walletBalance']) if len(currcoin)>0 else 0
         USDLoan = 0
         for coin in info_wallet['result']['list'][-1]['coin']:
             if coin['coin']=='USDT':
@@ -321,6 +332,9 @@ class OrderWorker(QThread):
             if symbol != self.symbol:continue
             self.position[symbol] = pos
         
+        # Fillup size difference 
+        if not self.start_entry:return 
+        if self.mode == 'exit':return
         curswap_sz = float(self.position[self.symbol]['size']) if self.symbol in self.position else 0
         curspot_sz = float(self.asset_info[self.symbol]['equity']) if self.symbol in self.asset_info else 0
         diff = curswap_sz - curspot_sz

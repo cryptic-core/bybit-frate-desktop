@@ -133,6 +133,22 @@ class MyDialog(QDialog):
     def on_symbol_lose_focus(self):
         self.target_symbol = self.symbol_input.text()
 
+        # update all parameters to orderworker
+        settings = QSettings("config.ini", QSettings.IniFormat)
+        mode = int(settings.value("entrymode",0))
+        content = {}
+        content["mode"] = mode
+        content["apikey"] = self.api_key_input.text()
+        content["apisecret"] = self.api_secret_input.text()
+        content["symbol"] = self.symbol_input.text()
+        content["mmrate"] = self.mmrate_input.text()
+        content["mlotplier"] = self.mlot_input.text()
+        content["descrpancy"] = self.entry_dif.text() if mode==0 else self.exit_dif.text()
+        content["targetsz"] = self.tgt_amt_entry.text() if mode==0 else self.tgt_amt_exit.text()
+        content["toggle"] = False
+        self.order_worker.trigger_from_dlg.emit(json.dumps(content))
+
+
     def create_settings_tab(self):
         settings = QSettings("config.ini", QSettings.IniFormat)
         settings_tab = QWidget()
@@ -270,8 +286,8 @@ class MyDialog(QDialog):
         content["symbol"] = self.symbol_input.text()
         content["mmrate"] = self.mmrate_input.text()
         content["mlotplier"] = self.mlot_input.text()
-        content["descrpancy"] = self.entry_dif.text()
-        content["targetsz"] = self.tgt_amt_entry.text()
+        content["descrpancy"] = self.entry_dif.text() if mode==0 else self.exit_dif.text()
+        content["targetsz"] = self.tgt_amt_entry.text() if mode==0 else self.tgt_amt_exit.text()
 
         if current_text == f"Start {curmode}":
             content["toggle"] = True
