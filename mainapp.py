@@ -55,17 +55,17 @@ class MyDialog(QDialog):
 
         accinfo_grp_box = QGroupBox("Account Info")
         accinfo_layout = QHBoxLayout()
-        self.lbb_acc_balance = QLabel("Account Balance: 45142")
+        self.lbb_acc_balance = QLabel("Account Balance: ")
         self.lbb_acc_balance.setAlignment(Qt.AlignLeft)
         font = QFont()
         font.setPointSize(16)
         font.setBold(True) 
         #self.lbb_acc_balance.setFont(font)
         accinfo_layout.addWidget(self.lbb_acc_balance)
-        self.lbb_im_rate = QLabel("IM Rate: 45%")
+        self.lbb_im_rate = QLabel("IM Rate: ")
         self.lbb_im_rate.setAlignment(Qt.AlignLeft)
         accinfo_layout.addWidget(self.lbb_im_rate)
-        self.lbb_mm_rate = QLabel("MM Rate: 15%")
+        self.lbb_mm_rate = QLabel("MM Rate: ")
         self.lbb_mm_rate.setAlignment(Qt.AlignLeft)
         accinfo_layout.addWidget(self.lbb_mm_rate)
         accinfo_grp_box.setLayout(accinfo_layout)
@@ -73,10 +73,10 @@ class MyDialog(QDialog):
 
         yieldinfo_grp_box = QGroupBox("Yield Info")
         yieldinfo_layout = QHBoxLayout()
-        self.lbb_real_income_8h = QLabel("Real Income 8H:       $18.135 usd")
+        self.lbb_real_income_8h = QLabel("Real Income 8H:       $0 usd")
         self.lbb_real_income_8h.setAlignment(Qt.AlignLeft)
         yieldinfo_layout.addWidget(self.lbb_real_income_8h)
-        self.lbb_apy_8h = QLabel("APY 8H:       56%")
+        self.lbb_apy_8h = QLabel("APY 8H:       0%")
         self.lbb_apy_8h.setAlignment(Qt.AlignLeft)
         yieldinfo_layout.addWidget(self.lbb_apy_8h)
         yieldinfo_grp_box.setLayout(yieldinfo_layout)
@@ -85,7 +85,7 @@ class MyDialog(QDialog):
 
         lendinfo_grp_box = QGroupBox("Lending Info")
         lendinfo_layout = QHBoxLayout()
-        self.lbb_lendrate_8h = QLabel("Lending rate 8hr:   10%")
+        self.lbb_lendrate_8h = QLabel("Lending rate 8hr:    0%")
         self.lbb_lendrate_8h.setAlignment(Qt.AlignLeft)
         lendinfo_layout.addWidget(self.lbb_lendrate_8h)
         lendinfo_grp_box.setLayout(lendinfo_layout)
@@ -253,7 +253,7 @@ class MyDialog(QDialog):
                 self.monitor_worker = MonitorWorker(apikey,secretkey)
                 self.monitor_worker.account_info_to_dlg.connect(self.update_log)
                 self.monitor_worker.start()
-                print(self.monitor_worker)
+                self.start_worker()
         
         return settings_tab
 
@@ -263,10 +263,22 @@ class MyDialog(QDialog):
         mode = int(settings.value("entrymode",0))
         curmode = "Entry" if mode==0 else "Exit"
         if current_text == f"Start {curmode}":
-            self.start_worker()
+            content = {}
+            content["toggle"] = True
+            content["mode"] = mode
+            content["apikey"] = self.api_key_input.text()
+            content["apisecret"] = self.api_secret_input.text()
+            content["symbol"] = self.symbol_input.text()
+            content["mmrate"] = self.mmrate_input.text()
+            content["mlotplier"] = self.mlot_input.text()
+            content["descrpancy"] = self.entry_dif.text()
+            content["targetsz"] = self.tgt_amt_entry.text()
+            self.order_worker.trigger_from_dlg.emit(json.dumps(content))
             self.start_button.setText("Stop")
         else:
-            self.stop_worker()
+            content = {}
+            content["toggle"] = False
+            self.order_worker.trigger_from_dlg.emit(False)
             self.start_button.setText(f"Start {curmode}")
             
 

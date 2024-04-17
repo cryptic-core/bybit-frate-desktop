@@ -9,6 +9,7 @@ from pybit.unified_trading import HTTP
 
 # Order processor class
 class OrderWorker(QThread):
+    trigger_from_dlg = pyqtSignal(str) # toggle from dialog
     order_res_to_dlg = pyqtSignal(str)
     aggregate_book_to_dlg = pyqtSignal(str)
     pyqtSignal(str)
@@ -29,13 +30,14 @@ class OrderWorker(QThread):
         self.mode='entry' if mode==0 else 'exit'
         self.targetsz = targetsz
         self.mlotplier = max(1,mlotplier) 
-
+        self.trigger_from_dlg.connect(self.on_trigger_from_dlg)
         # inner infomation
+        self.start_entry = False
         self.swap_order_id = ''
         self.asset_info = {}
         self.position = {}
         self.spotholding = {}
-        self.margin_rate = 0
+        self.margin_rate = 95
 
         bTestnet = False
         self.session = HTTP(
@@ -145,6 +147,9 @@ class OrderWorker(QThread):
             # send curr price info back to dlg
             self.aggregate_book_to_dlg.emit( json.dumps(aggregate_book))
 
+            # toggle filter
+            if not self.start_entry:return
+
             # time filter
             curtime = time.time()
             if (curtime - self.lastordertime)<1.5:return
@@ -229,10 +234,21 @@ class OrderWorker(QThread):
     def handle_cur_wallet(self,message):
         if not 'data' in message : return
 
+    # receive message dynamically from dialog
+    def on_trigger_from_dlg(self, contex):
+        content = json.loads(contex)
+        self.start_entry = content["toggle"]
+        self.mode = content["mode"]
+        self.apikey = content['apikey']
+        self.secretkey = content['apisecret']
+        self.margin_rate = content['mmrate']
+        self.mlotplier = content['mlotplier']
+        self.targetsz = content['targetsz']
+    
     # receive account info from monitor worker class
     def on_account_info_msg(self,msg):
 
-        print(f'on receive {msg} from monitor')
+        # print(f'on receive {msg} from monitor')
         info_wallet = self.session.get_wallet_balance(accountType="UNIFIED") # account margin
         accountBalance ="{:.2f}".format( float(info_wallet['result']['list'][-1]['totalEquity']) )
         imrate_f = float(info_wallet['result']['list'][-1]['accountIMRate'])*100

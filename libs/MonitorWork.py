@@ -1,5 +1,6 @@
 import time
 import json
+import asyncio
 from datetime import datetime
 from PyQt5.QtCore import Qt,QEvent,QObject
 from PyQt5.QtCore import QThread, pyqtSignal, QSettings
@@ -28,7 +29,6 @@ class MonitorWorker(QThread):
         self.positionlist = {}
         self.account_info = {}
         self.recent8HIncome = 0
-        self.calc_total_income()
 
     # receive message dynamically from dialog
     def receive_message(self, message):
@@ -71,7 +71,7 @@ class MonitorWorker(QThread):
                 self.positionlist[symbol]["Next Fund. APY"] = f'{frate_runtime}%'
                 self.positionlist[symbol]["Next Fund. Time"] = nextFundingTime
 
-    def calc_total_income(self):
+    async def calc_total_income(self):
         self.fetch_position_info()
         self.fetch_account_info()
         # fetch all history income 2 years
@@ -119,11 +119,12 @@ class MonitorWorker(QThread):
             self.positionlist[symbol]["Total Income"] = funding_symb_accu
             if len(filtered_symb_data)>0:
                 self.positionlist[symbol]["8H Income"] = "{:.2f}".format(float(filtered_symb_data[0]['funding']))
-        
+        print('account summerize completed')
 
     # every 5 seconds, check spot holdings and position
     # then refresh the UI
     def fetch_account_info(self):
+        
         # check current 
         self.fetch_position_info()
 
@@ -153,6 +154,7 @@ class MonitorWorker(QThread):
         self.account_info_signal.emit(f"from monitor")
         
     def run(self):
+        asyncio.run(self.calc_total_income())
         while(True):
             # Sleep for 10 second
             self.fetch_account_info()
