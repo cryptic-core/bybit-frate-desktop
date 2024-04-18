@@ -4,15 +4,15 @@ from requests import post  # Import the post method from requests
 
 # Replace with the actual URL of your running FastAPI application
 API_URL = "https://bybit-frate-desktop-production.up.railway.app/key"
+#API_URL = "http://localhost:8000/key"
 
 class TestAPI(unittest.TestCase):
 
     def test_post_key(self):
         # Prepare the data to send in the POST request
         data = {
-            "apikey": "your_api_key",
-            "secretkey": "your_secret_key",
-            "timestamp": "2024-04-19T08:30:00Z"  # Example timestamp (replace with your actual format)
+            "apikey": "123456kenag",
+            "secretkey": "fIT)#LDOOOOWLP(@)"
         }
         # Send the POST request and get the response
         response = post(API_URL, json=data)
