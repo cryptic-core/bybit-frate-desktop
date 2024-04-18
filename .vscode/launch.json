@@ -19,6 +19,26 @@
             "type": "python",
             "request": "attach",
             "processId": "${command:pickProcess}"
-        }
+        },
+        {
+            "name": "Run",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/serv.py",
+            "args": ["0","main.py"],
+            "console": "integratedTerminal",
+            "env": {},
+            "stopOnEntry": false,
+        },
+        {
+            "name": "Start Server",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["main:app","--reload"],
+            "python": "/Users/kang/opt/anaconda3/envs/frate/bin/python",
+            "jinja": true,
+            "justMyCode": true
+        },
     ]
 }
