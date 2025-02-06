@@ -8,6 +8,7 @@
             "name": "Run",
             "type": "debugpy",
             "request": "launch",
+            "python":"/opt/anaconda3/envs/frate/bin/python",
             "program": "${workspaceFolder}/mainapp.py",
             "args": ["0","main.py"],
             "console": "integratedTerminal",
